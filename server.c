@@ -5,21 +5,10 @@
 
 int main()
 {
-    char *interface_name = "lo";
+    char *interface_name = "enp1s0";
     int socket = 0;
-    PACKAGE response;
-
     socket = create_raw_socket(interface_name);
 
-    printf("SOCKET: %d\n", socket);
-
-    while (1)
-    {
-        if (read(socket, &response, sizeof(response)) < 0)
-            fprintf(stderr, "Error reading package.");
-
-        printf("PACKAGE TYPE: %d\n", response.type);
-    }
-
+    wait_for_packages(socket);
     return 0;
 }

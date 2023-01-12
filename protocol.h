@@ -3,6 +3,9 @@
 #define MAX_DATA_SIZE 63
 #define MAX_SEQUENCE 15
 #define CRC_POLYNOMIAL 0x9b
+#define MAX_TEXT_MESSAGE_SIZE 1000
+
+#include <sys/select.h>
 
 typedef enum
 {
@@ -29,3 +32,7 @@ typedef struct
 void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data);
 
 void send_text_message(int socket_fd, char *message);
+
+void get_text_message(int socket_fd);
+
+void wait_for_packages(int socket_fd);

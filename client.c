@@ -6,11 +6,11 @@
 #include "protocol.h"
 
 #define MAX_COMMAND_SIZE 32
-#define MAX_TEXT_MESSAGE_SIZE 1000
 
 void listen_message_mode(int sock_fd)
 {
     char message[MAX_TEXT_MESSAGE_SIZE];
+    bzero(&message, sizeof(message));
 
     printf("You are now on messaging mode. Usage:\n");
     printf("- Type any message and press ENTER to send it.\n");
@@ -22,6 +22,7 @@ void listen_message_mode(int sock_fd)
     while (strcmp(message, ":e") != 0)
     {
         send_text_message(sock_fd, message);
+        bzero(&message, sizeof(message));
         printf("> ");
         fgets(message, MAX_TEXT_MESSAGE_SIZE, stdin);
         message[strlen(message) - 1] = '\0';
@@ -32,7 +33,7 @@ void listen_message_mode(int sock_fd)
 
 int main()
 {
-    char *interface_name = "lo";
+    char *interface_name = "enp2s0";
     int socket = 0;
     char command[MAX_COMMAND_SIZE];
     pthread_t threads_id[2];
