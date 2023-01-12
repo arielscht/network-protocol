@@ -24,6 +24,32 @@ int is_able_to_read(int socket_fd, fd_set *read_fds, struct timeval *timeout)
     return 0;
 }
 
+int await_ack(int socket_fd, PACKAGE *response, fd_set *read_fds, struct timeval *timeout)
+{
+    if (is_able_to_read(socket_fd, read_fds, timeout))
+    {
+        bzero(response, sizeof(response));
+        if (read(socket_fd, response, sizeof(response)) < 0)
+        {
+            printf("Client disconnected!\n");
+            return -1;
+        }
+        else
+        {
+            if (response->type == ACK)
+            {
+                return 1;
+            }
+            return 0;
+        }
+    }
+    else
+    {
+        printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
+        return 0;
+    }
+}
+
 void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data)
 {
     bzero(package, sizeof(*package));
@@ -37,6 +63,8 @@ void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *d
 
 void send_text_message(int socket_fd, char *message)
 {
+    int await_ack_status;
+
     int client_disconnected = 0;
 
     fd_set write_fds, read_fds;
@@ -61,152 +89,20 @@ void send_text_message(int socket_fd, char *message)
             if (write(socket_fd, &package, sizeof(package)) < 0)
             {
                 client_disconnected = 1;
-                printf("Client disconected!\n");
-                continue;
+                fprintf(stderr, "Client disconnected!\n");
             }
             else
             {
-                if (is_able_to_read(socket_fd, &read_fds, &timeout))
-                {
-                    bzero(&response, sizeof(response));
-                    if (read(socket_fd, &response, sizeof(response)) < 0)
-                    {
-                        client_disconnected = 1;
-                        printf("Client disconected!\n");
-                        continue;
-                    }
-                    else
-                    {
-                        if (response.type == ACK)
-                        {
-                            break;
-                        }
-                        continue;
-                    }
-                }
-                else
-                {
-                    printf("Timeout occured on receving ACK from init, trying again\n");
-                    continue;
-                }
+                await_ack_status = await_ack(socket_fd, &response, &read_fds, &timeout);
+                if (await_ack_status == -1)
+                    client_disconnected = 1;
+                else if (await_ack_status)
+                    break;
             }
         }
         else
-        {
-            printf("Timeout occured on writing init, trying again\n");
-            continue;
-        }
+            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
     }
-
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            create_package(&package, TEXT, 0, message);
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                printf("Client disconected!\n");
-                continue;
-            }
-            else
-            {
-                if (is_able_to_read(socket_fd, &read_fds, &timeout))
-                {
-                    bzero(&response, sizeof(response));
-                    if (read(socket_fd, &response, sizeof(response)) < 0)
-                    {
-                        client_disconnected = 1;
-                        printf("Client disconected!\n");
-                        continue;
-                    }
-                    else
-                    {
-                        if (response.type == ACK)
-                        {
-                            break;
-                        }
-                        continue;
-                    }
-                }
-                else
-                {
-                    printf("Timeout occured on receving ACK from MESSAGE, trying again\n");
-                    continue;
-                }
-            }
-        }
-        else
-        {
-            printf("Timeout occured on writing message, trying again\n");
-            continue;
-        }
-    }
-
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            create_package(&package, END, sequence, "");
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                printf("Client disconected!\n");
-                continue;
-            }
-            else
-            {
-                if (is_able_to_read(socket_fd, &read_fds, &timeout))
-                {
-                    bzero(&response, sizeof(response));
-                    if (read(socket_fd, &response, sizeof(response)) < 0)
-                    {
-                        client_disconnected = 1;
-                        printf("Client disconected!\n");
-                        continue;
-                    }
-                    else
-                    {
-                        if (response.type == ACK)
-                        {
-                            break;
-                        }
-                        continue;
-                    }
-                }
-                else
-                {
-                    printf("Timeout occured on receving ACK from END, trying again\n");
-                    continue;
-                }
-            }
-        }
-        else
-        {
-            printf("Timeout occured on writing END, trying again\n");
-            continue;
-        }
-    }
-
-    // Send init of transmission package
-    // bzero(&response, sizeof(response));
-    // while (response.type != ACK)
-    // {
-    //     FD_ZERO(&write_fds);
-    //     FD_SET(socket_fd, &write_fds);
-    //     ready_fds = select(socket_fd + 1, NULL, &write_fds, NULL, &timeout);
-    //     if(ready_fds > 0 && FD_ISSET(socket_fd, &write_fds)){
-    //         create_package(&package, INIT, 0, (char *)&message_type);
-    //         write(socket_fd, &package, sizeof(package));
-    //     }
-
-    //     FD_ZERO(&read_fds);
-    //     FD_SET(socket_fd, &read_fds);
-    //     ready_fds = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
-    //     if(ready_fds > 0 && FD_ISSET(socket_fd, &read_fds)){
-    //         read(socket_fd, &response, sizeof(response));
-    //     }
-    // }
 
     // while (remaining_length > 0)
     // {
@@ -219,20 +115,54 @@ void send_text_message(int socket_fd, char *message)
 
     //     strncpy(message_slice, message + message_displacement, current_length);
 
-    //     FD_ZERO(&write_fds);
-    //     FD_SET(socket_fd, &write_fds);
-    //     ready_fds = select(socket_fd + 1, NULL, &write_fds, NULL, &timeout);
-    //     if(ready_fds > 0 && FD_ISSET(socket_fd, &write_fds)){
-    //         create_package(&package, TEXT, actual_sequence, message_slice);
-    //         write(socket_fd, &package, sizeof(package));
+    //     while (!client_disconnected)
+    //     {
+    //         if (is_able_to_write(socket_fd, &write_fds, &timeout))
+    //         {
+    //             create_package(&package, TEXT, actual_sequence, message_slice);
+    //             if (write(socket_fd, &package, sizeof(package)) < 0)
+    //             {
+    //                 client_disconnected = 1;
+    //                 fprintf(stderr, "Client disconnected\n");
+    //                 continue;
+    //             }
+    //             else
+    //             {
+    //                 if (is_able_to_read(socket_fd, &read_fds, &timeout))
+    //                 {
+    //                     bzero(&response, sizeof(response));
+    //                     if (read(socket_fd, &response, sizeof(response)) < 0)
+    //                     {
+    //                         client_disconnected = 1;
+    //                         printf("Client disconnected!\n");
+    //                         continue;
+    //                     }
+    //                     else
+    //                     {
+    //                         if (response.type == ACK)
+    //                         {
+    //                             break;
+    //                         }
+    //                         continue;
+    //                     }
+    //                 }
+    //                 else
+    //                 {
+    //                     printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
+    //                     continue;
+    //                 }
+    //             }
+    //         }
+    //         else
+    //         {
+    //             fprintf(stderr, "Timeout occurred on writing init, trying again\n");
+    //             continue;
+    //         }
     //     }
 
     //     printf("CHUNK %d: %s\n", sequence, message_slice);
-
-    //     FD_ZERO(&read_fds);
-    //     FD_SET(socket_fd, &read_fds);
-    //     ready_fds = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
-    //     if(ready_fds > 0 && FD_ISSET(socket_fd, &read_fds)){
+    //     if (is_able_to_read(socket_fd, &read_fds, &timeout))
+    //     {
     //         read(socket_fd, &response, sizeof(response));
     //     }
 
@@ -240,13 +170,51 @@ void send_text_message(int socket_fd, char *message)
     //     remaining_length -= current_length;
     // };
 
-    // FD_ZERO(&write_fds);
-    // FD_SET(socket_fd, &write_fds);
-    // ready_fds = select(socket_fd + 1, NULL, &write_fds, NULL, &timeout);
-    // if(ready_fds > 0 && FD_ISSET(socket_fd, &write_fds)){
-    //     create_package(&package, END, sequence, "");
-    //     write(socket_fd, &package, sizeof(package));
-    // }
+    while (!client_disconnected)
+    {
+        if (is_able_to_write(socket_fd, &write_fds, &timeout))
+        {
+            create_package(&package, TEXT, 0, message);
+            if (write(socket_fd, &package, sizeof(package)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+            }
+            else
+            {
+                await_ack_status = await_ack(socket_fd, &response, &read_fds, &timeout);
+                if (await_ack_status == -1)
+                    client_disconnected = 1;
+                else if (await_ack_status)
+                    break;
+            }
+        }
+        else
+            fprintf(stderr, "Timeout occurred on writing message, trying again\n");
+    }
+
+    while (!client_disconnected)
+    {
+        if (is_able_to_write(socket_fd, &write_fds, &timeout))
+        {
+            create_package(&package, END, sequence, "");
+            if (write(socket_fd, &package, sizeof(package)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+            }
+            else
+            {
+                await_ack_status = await_ack(socket_fd, &response, &read_fds, &timeout);
+                if (await_ack_status == -1)
+                    client_disconnected = 1;
+                else if (await_ack_status)
+                    break;
+            }
+        }
+        else
+            fprintf(stderr, "Timeout occurred on writing END, trying again\n");
+    }
 }
 
 // review logic
@@ -275,7 +243,7 @@ void get_text_message(int socket_fd)
             if (read(socket_fd, &package, sizeof(package)) < 0)
             {
                 client_disconnected = 1;
-                printf("Client disconnected!\n");
+                fprintf(stderr, "Client disconnected!\n");
                 continue;
             }
             else
@@ -296,13 +264,13 @@ void get_text_message(int socket_fd)
                         if (write(socket_fd, &response, sizeof(response)) < 0)
                         {
                             client_disconnected = 1;
-                            printf("Client disconnected!\n");
+                            fprintf(stderr, "Client disconnected!\n");
                         }
                         continue;
                     }
                     else
                     {
-                        printf("Timeout occurred when sending ACK\n");
+                        fprintf(stderr, "Timeout occurred when sending ACK\n");
                         continue;
                     }
                 }
@@ -312,7 +280,7 @@ void get_text_message(int socket_fd)
         }
         else
         {
-            printf("Timeout occurred when receiving TEXT package\n");
+            fprintf(stderr, "Timeout occurred when receiving TEXT package\n");
             break;
         }
     }
@@ -343,7 +311,7 @@ void wait_for_packages(int socket_fd)
                 if (read(socket_fd, &package, sizeof(package)) < 0)
                 {
                     client_disconnected = 1;
-                    printf("Client disconnected!\n");
+                    fprintf(stderr, "Client disconnected!\n");
                     continue;
                 }
                 else
@@ -372,7 +340,7 @@ void wait_for_packages(int socket_fd)
                 if (write(socket_fd, &response, sizeof(response)) < 0)
                 {
                     client_disconnected = 1;
-                    printf("Client disconnected!\n");
+                    fprintf(stderr, "Client disconnected!\n");
                     continue;
                 }
                 else
