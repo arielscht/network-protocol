@@ -3,7 +3,7 @@
 #include <string.h>
 #include <pthread.h>
 #include "socket.h"
-#include "protocol.h"
+#include "protocol/protocol.h"
 
 #define MAX_COMMAND_SIZE 32
 

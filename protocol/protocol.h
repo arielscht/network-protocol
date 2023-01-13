@@ -1,3 +1,6 @@
+#ifndef __PROTOCOL__
+#define __PROTOCOL__
+
 #define INIT_MARKER 126
 #define MAX_DATA_SIZE 63
 #define MAX_SEQUENCE 15
@@ -29,14 +32,10 @@ typedef struct
     unsigned char crc;
 } PACKAGE;
 
-void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data);
-
 void send_text_message(int socket_fd, char *message);
 
 void get_text_message(int socket_fd);
 
 void wait_for_packages(int socket_fd);
 
-void generate_crc(PACKAGE *package);
-
-int check_crc(PACKAGE *package);
+#endif

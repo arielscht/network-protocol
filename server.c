@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
-#include "protocol.h"
+#include "protocol/protocol.h"
+#include "protocol/utils.h"
 #include "socket.h"
 
 int main()
@@ -14,7 +15,7 @@ int main()
     // CRC: 001
     // create_package(&package, TEXT, 0, "abcde");
     create_package(&package, TEXT, 0, "abcde");
-    generate_crc(&package);
+    // generate_crc(&package);
     printf("crc: %x\n", package.crc);
 
     printf("DATA BEFORE: %s\n", package.data);
