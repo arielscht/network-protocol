@@ -177,29 +177,6 @@ void send_text_message(int socket_fd, char *message)
         remaining_length -= current_length;
     };
 
-    // while (!client_disconnected)
-    // {
-    //     if (is_able_to_write(socket_fd, &write_fds, &timeout))
-    //     {
-    //         create_package(&package, TEXT, 0, message);
-    //         if (write(socket_fd, &package, sizeof(package)) < 0)
-    //         {
-    //             client_disconnected = 1;
-    //             fprintf(stderr, "Client disconnected!\n");
-    //         }
-    //         else
-    //         {
-    //             await_ack_status = await_ack(socket_fd, &response, &read_fds, &timeout);
-    //             if (await_ack_status == -1)
-    //                 client_disconnected = 1;
-    //             else if (await_ack_status)
-    //                 break;
-    //         }
-    //     }
-    //     else
-    //         fprintf(stderr, "Timeout occurred on writing message, trying again\n");
-    // }
-
     while (!client_disconnected)
     {
         if (is_able_to_write(socket_fd, &write_fds, &timeout))
