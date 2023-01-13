@@ -1,9 +1,9 @@
-
 #define INIT_MARKER 126
 #define MAX_DATA_SIZE 63
 #define MAX_SEQUENCE 15
-#define CRC_POLYNOMIAL 0x9b
+#define CRC_POLYNOMIAL "110011011"
 #define MAX_TEXT_MESSAGE_SIZE 1000
+#define BITS_IN_BYTE_QNT 8
 
 #include <sys/select.h>
 
@@ -36,3 +36,7 @@ void send_text_message(int socket_fd, char *message);
 void get_text_message(int socket_fd);
 
 void wait_for_packages(int socket_fd);
+
+void generate_crc(PACKAGE *package);
+
+int check_crc(PACKAGE *package);

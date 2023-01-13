@@ -1,4 +1,4 @@
-CFLAGS = -Wall
+CFLAGS = -Wall -g
 
 CLIENT_OBJECTS = client.o socket.o protocol.o
 SERVER_OBJECTS = server.o socket.o protocol.o
