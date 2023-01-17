@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include "socket.h"
 #include "protocol/protocol.h"
+#include "protocol/utils.h"
 
 #define MAX_COMMAND_SIZE 32
 
@@ -38,7 +39,7 @@ int main()
     char command[MAX_COMMAND_SIZE];
     pthread_t threads_id[2];
 
-    socket = create_raw_socket(interface_name);
+    // socket = create_raw_socket(interface_name);
 
     fgets(command, MAX_COMMAND_SIZE, stdin);
     command[strlen(command) - 1] = '\0';
@@ -47,6 +48,29 @@ int main()
         if (strcmp(command, "i") == 0)
         {
             listen_message_mode(socket);
+        }
+        else if (strstr(command, ":send") != NULL)
+        {
+            char *filepath;
+            filepath = strtok(command, " ");
+
+            while (filepath != NULL)
+            {
+                if (strcmp(filepath, ":send") != 0)
+                {
+                    printf("%s\n", filepath);
+                    break;
+                }
+
+                filepath = strtok(NULL, " ");
+            }
+
+            if (access(filepath, R_OK) == 0)
+            {
+                printf("The size of the file %s is: %ld\n", filepath, file_size(filepath));
+            }
+            else
+                printf("The file %s does not exists\n", filepath);
         }
         else
         {

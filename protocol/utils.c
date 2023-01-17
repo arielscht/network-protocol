@@ -124,3 +124,14 @@ void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *d
     strcpy(package->data, data);
     generate_crc(package);
 }
+
+long int file_size(char *filepath)
+{
+    FILE *fp = fopen(filepath, "r"); // assuming the file exists
+
+    fseek(fp, 0L, SEEK_END);
+    long int res = ftell(fp);
+    fclose(fp);
+
+    return res;
+}
