@@ -39,7 +39,7 @@ int main()
     char command[MAX_COMMAND_SIZE];
     pthread_t threads_id[2];
 
-    // socket = create_raw_socket(interface_name);
+    socket = create_raw_socket(interface_name);
 
     fgets(command, MAX_COMMAND_SIZE, stdin);
     command[strlen(command) - 1] = '\0';
