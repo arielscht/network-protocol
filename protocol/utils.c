@@ -135,3 +135,33 @@ long int size_of_file(char *filepath)
 
     return res;
 }
+
+int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int packages_qnt)
+{
+    int i;
+
+    for (i = 0; i < packages_qnt; i++)
+        if (packages[i].sequence == cur_package->sequence)
+            return 1;
+
+    return 0;
+}
+
+void sort_packages(PACKAGE *packages, int packages_qnt)
+{
+    PACKAGE aux;
+    int i, j, min_index;
+
+    for (i = 0; i < packages_qnt - 1; i++)
+    {
+        min_index = i;
+
+        for (j = i + 1; j < packages_qnt; j++)
+            if (packages[j].sequence < packages[min_index].sequence)
+                min_index = j;
+
+        aux = packages[i];
+        packages[i] = packages[min_index];
+        packages[min_index] = aux;
+    }
+}

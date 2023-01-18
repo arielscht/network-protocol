@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include "protocol.h"
 #include "utils.h"
+#include <libgen.h>
 
 int is_able_to_write(int socket_fd, fd_set *write_fds, struct timeval *timeout)
 {
@@ -249,6 +250,107 @@ void get_text_message(int socket_fd)
     printf("MESSAGE: %s\n", message);
 }
 
+void get_media(int socket_fd)
+{
+    int client_disconnected = 0;
+
+    fd_set write_fds, read_fds;
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    int ready_fds;
+
+    char *filename;
+    int packages_size, package_index, i;
+    PACKAGE *packages, cur_package;
+
+    packages_size = 5;
+    package_index = 0;
+    packages = calloc(packages_size, sizeof(PACKAGE));
+    if (!packages)
+    {
+        // handle error
+        exit(-1);
+    }
+
+    bzero(&cur_package, sizeof(cur_package));
+
+    while (!client_disconnected && cur_package.type != END)
+    {
+        if (package_index == packages_size - 1)
+        {
+            packages_size += 5;
+            packages = realloc(packages, packages_size * sizeof(PACKAGE));
+            if (!packages)
+            {
+                // handle error
+                exit(-1);
+            }
+        }
+
+        if (is_able_to_read(socket_fd, &read_fds, &timeout))
+        {
+            bzero(&cur_package, sizeof(cur_package));
+            if (read(socket_fd, &cur_package, sizeof(cur_package)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+                continue;
+            }
+            else
+            {
+                if (cur_package.init_marker != INIT_MARKER)
+                    continue;
+
+                if (cur_package.type == MEDIA || cur_package.type == END)
+                {
+                    if (cur_package.type == MEDIA)
+                    {
+                        if (!check_duplicated(packages, &cur_package, package_index + 1))
+                            packages[package_index] = cur_package;
+
+                        package_index++;
+                    }
+                    else
+                    {
+                        filename = calloc(cur_package.size, sizeof(char));
+                        if (!filename)
+                        {
+                            // handle error
+                            exit(-1);
+                        }
+
+                        strcpy(filename, cur_package.data);
+                    }
+
+                    send_ack(socket_fd, &cur_package, &write_fds, &timeout);
+                }
+                // Do not forget to treat other errors
+                continue;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
+            break;
+        }
+    }
+
+    int packages_qnt = package_index + 1;
+    sort_packages(packages, packages_qnt);
+
+    int file = open(filename, O_CREAT | O_WRONLY);
+    if (file < 0)
+    {
+        // handle error
+        exit(-1);
+    }
+
+    for (i = 0; i < packages_qnt; i++)
+        write(file, packages[i].data, packages[i].size);
+}
+
 void wait_for_packages(int socket_fd)
 {
     int client_disconnected = 0;
@@ -287,9 +389,15 @@ void wait_for_packages(int socket_fd)
 
         if (*package.data == TEXT)
         {
-            printf("\n------ Begin Client sent you ------\n");
+            printf("\n------ TEXT - Begin Client sent you ------\n");
             get_text_message(socket_fd);
-            printf("\n------ End Client sent you ------\n");
+            printf("\n------ TEXT - End Client sent you ------\n");
+        }
+        else if (*package.data == MEDIA)
+        {
+            printf("\n------ MEDIA - Begin Client sent you ------\n");
+            get_media(socket_fd);
+            printf("\n------ MEDIA - End Client sent you ------\n");
         }
     }
 }
@@ -374,17 +482,19 @@ void send_file(int socket_fd, char *filepath)
     }
 
     int window_start = 0;
-    int window_end = WINDOW_SIZE;
-    int ack_received[WINDOW_SIZE];
+    int window_end = package_qnt > WINDOW_SIZE ? WINDOW_SIZE : package_qnt;
 
-    bzero(ack_received, WINDOW_SIZE);
-
-    while (!client_disconnected)
+    while (!client_disconnected && window_start < package_qnt)
     {
+        int ack_received_qnt = window_end - window_start + 1;
+        int ack_received[ack_received_qnt];
+
+        bzero(ack_received, ack_received_qnt);
+
         i = window_start;
         while (i < window_end)
         {
-            if (!ack_received[i % WINDOW_SIZE])
+            if (!ack_received[i % ack_received_qnt])
             {
                 if (is_able_to_write(socket_fd, &write_fds, &timeout))
                 {
@@ -412,12 +522,12 @@ void send_file(int socket_fd, char *filepath)
                 client_disconnected = 1;
             else if (await_ack_status)
             {
-                ack_received[expected_ack % WINDOW_SIZE] = 1;
+                ack_received[expected_ack % ack_received_qnt] = 1;
 
                 int all_acks_received = 1;
                 for (i = window_start; i < window_end && all_acks_received; i++)
                 {
-                    if (!ack_received[i % WINDOW_SIZE])
+                    if (!ack_received[i % ack_received_qnt])
                     {
                         all_acks_received = 0;
                     }
@@ -425,9 +535,8 @@ void send_file(int socket_fd, char *filepath)
 
                 if (all_acks_received)
                 {
-                    window_start += WINDOW_SIZE;
-                    window_end += WINDOW_SIZE;
-                    bzero(ack_received, WINDOW_SIZE);
+                    window_start = window_end;
+                    window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
                     break;
                 }
 
@@ -440,7 +549,7 @@ void send_file(int socket_fd, char *filepath)
     {
         if (is_able_to_write(socket_fd, &write_fds, &timeout))
         {
-            create_package(&end_package, END, 0, (char *)&message_type);
+            create_package(&end_package, END, 0, basename(filepath));
             if (write(socket_fd, &end_package, sizeof(end_package)) < 0)
             {
                 client_disconnected = 1;

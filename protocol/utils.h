@@ -15,4 +15,8 @@ void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *d
 
 long int size_of_file(char *filepath);
 
+int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int packages_qnt);
+
+void sort_packages(PACKAGE *packages, int packages_qnt);
+
 #endif
