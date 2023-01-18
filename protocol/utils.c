@@ -136,27 +136,27 @@ long int size_of_file(char *filepath)
     return res;
 }
 
-int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int packages_qnt)
+int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int start_index, int end_index)
 {
     int i;
 
-    for (i = 0; i < packages_qnt; i++)
+    for (i = start_index; i <= end_index; i++)
         if (packages[i].sequence == cur_package->sequence)
             return 1;
 
     return 0;
 }
 
-void sort_packages(PACKAGE *packages, int packages_qnt)
+void sort_packages(PACKAGE *packages, int start_index, int end_index)
 {
     PACKAGE aux;
     int i, j, min_index;
 
-    for (i = 0; i < packages_qnt - 1; i++)
+    for (i = start_index; i <= end_index - 1; i++)
     {
         min_index = i;
 
-        for (j = i + 1; j < packages_qnt; j++)
+        for (j = i + 1; j <= end_index; j++)
             if (packages[j].sequence < packages[min_index].sequence)
                 min_index = j;
 

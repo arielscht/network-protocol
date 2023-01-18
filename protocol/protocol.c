@@ -71,6 +71,7 @@ int send_ack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval 
             }
             else
             {
+                printf("ACK SENT %d\n", package->sequence);
                 return 1;
             }
         }
@@ -130,6 +131,7 @@ void send_text_message(int socket_fd, char *message)
     while (!client_disconnected && remaining_length > 0)
     {
         bzero(message_slice, MAX_DATA_SIZE);
+        int actual_sequence = sequence % MAX_SEQUENCE;
         int message_displacement = sequence * MAX_DATA_SIZE;
         int current_length = message_displacement + MAX_DATA_SIZE > message_length
                                  ? message_length - message_displacement
@@ -143,7 +145,7 @@ void send_text_message(int socket_fd, char *message)
         {
             if (is_able_to_write(socket_fd, &write_fds, &timeout))
             {
-                create_package(&package, TEXT, sequence, message_slice);
+                create_package(&package, TEXT, actual_sequence, message_slice);
                 if (write(socket_fd, &package, sizeof(package)) < 0)
                 {
                     client_disconnected = 1;
@@ -151,7 +153,7 @@ void send_text_message(int socket_fd, char *message)
                 }
                 else
                 {
-                    await_ack_status = await_ack(socket_fd, sequence, &response, &read_fds, &timeout);
+                    await_ack_status = await_ack(socket_fd, actual_sequence, &response, &read_fds, &timeout);
                     if (await_ack_status == -1)
                         client_disconnected = 1;
                     else if (await_ack_status)
@@ -172,7 +174,7 @@ void send_text_message(int socket_fd, char *message)
     {
         if (is_able_to_write(socket_fd, &write_fds, &timeout))
         {
-            int end_sequence = sequence + 1;
+            int end_sequence = sequence % MAX_SEQUENCE;
             create_package(&package, END, end_sequence, (char *)&message_type);
             if (write(socket_fd, &package, sizeof(package)) < 0)
             {
@@ -262,7 +264,7 @@ void get_media(int socket_fd)
     int ready_fds;
 
     char *filename;
-    int packages_size, package_index, i;
+    int packages_size, package_index, i, start_index, end_index;
     PACKAGE *packages, cur_package;
 
     packages_size = 5;
@@ -307,13 +309,21 @@ void get_media(int socket_fd)
                 {
                     if (cur_package.type == MEDIA)
                     {
-                        if (!check_duplicated(packages, &cur_package, package_index + 1))
+                        printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
+                        start_index = floor((double)package_index / WINDOW_SIZE) * WINDOW_SIZE;
+                        end_index = package_index - 1;
+                        if (!check_duplicated(packages, &cur_package, start_index, end_index))
+                        {
+                            printf("Not duplicated ; index: %d\n", package_index);
                             packages[package_index] = cur_package;
+                            printf("Package sequence: %d\n", packages[package_index].sequence);
+                        }
 
                         package_index++;
                     }
                     else
                     {
+                        printf("Inside end ; index: %d\n", package_index);
                         filename = calloc(cur_package.size, sizeof(char));
                         if (!filename)
                         {
@@ -337,8 +347,15 @@ void get_media(int socket_fd)
         }
     }
 
-    int packages_qnt = package_index + 1;
-    sort_packages(packages, packages_qnt);
+    int packages_qnt = package_index;
+    start_index = 0;
+    end_index = packages_qnt > WINDOW_SIZE ? WINDOW_SIZE - 1 : packages_qnt - 1;
+    while (start_index < packages_qnt)
+    {
+        sort_packages(packages, start_index, end_index);
+        start_index = end_index + 1;
+        end_index = packages_qnt > (end_index + 1) + WINDOW_SIZE ? (end_index + 1) + WINDOW_SIZE - 1 : packages_qnt - 1;
+    }
 
     int file = open(filename, O_CREAT | O_WRONLY);
     if (file < 0)
@@ -451,12 +468,12 @@ void send_file(int socket_fd, char *filepath)
         }
 
         buffer[MAX_DATA_SIZE] = '\0';
-        create_package(&packages[package_index], MEDIA, package_index, buffer);
+        create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer);
         bzero(buffer, MAX_DATA_SIZE);
         package_index++;
     }
 
-    package_qnt = package_index + 1;
+    package_qnt = package_index;
 
     while (!client_disconnected)
     {
@@ -481,15 +498,19 @@ void send_file(int socket_fd, char *filepath)
             fprintf(stderr, "Timeout occurred on writing init, trying again\n");
     }
 
+    printf("INIT ACK RECEIVED SUCCESS\n");
+    printf("There are %d packages to be sent\n", package_qnt);
+
     int window_start = 0;
     int window_end = package_qnt > WINDOW_SIZE ? WINDOW_SIZE : package_qnt;
 
     while (!client_disconnected && window_start < package_qnt)
     {
-        int ack_received_qnt = window_end - window_start + 1;
+        printf("window start %d ; Window end: %d\n", window_start, window_end);
+        int ack_received_qnt = window_end - window_start;
         int ack_received[ack_received_qnt];
 
-        bzero(ack_received, ack_received_qnt);
+        bzero(&ack_received, sizeof(ack_received));
 
         i = window_start;
         while (i < window_end)
@@ -503,6 +524,8 @@ void send_file(int socket_fd, char *filepath)
                         client_disconnected = 1;
                         fprintf(stderr, "Client disconnected!\n");
                     }
+                    else
+                        printf("Package %d was sent\n", i);
                 }
                 else
                 {
@@ -514,35 +537,85 @@ void send_file(int socket_fd, char *filepath)
             i++;
         }
 
-        int expected_ack = window_start;
+        printf("Waiting acks!\n");
+
+        int expected_acks[ack_received_qnt];
+        for (i = window_start; i < window_end; i++)
+            expected_acks[i % ack_received_qnt] = i % MAX_SEQUENCE;
+
         while (!client_disconnected)
         {
-            await_ack_status = await_ack(socket_fd, expected_ack, &response, &read_fds, &timeout);
-            if (await_ack_status == -1)
-                client_disconnected = 1;
-            else if (await_ack_status)
+            if (is_able_to_read(socket_fd, &read_fds, &timeout))
             {
-                ack_received[expected_ack % ack_received_qnt] = 1;
-
-                int all_acks_received = 1;
-                for (i = window_start; i < window_end && all_acks_received; i++)
+                bzero(&response, sizeof(response));
+                if (read(socket_fd, &response, sizeof(response)) < 0)
                 {
-                    if (!ack_received[i % ack_received_qnt])
+                    printf("Client disconnected!\n");
+                }
+                else
+                {
+                    if (response.type == ACK)
+                        for (i = 0; i < ack_received_qnt; i++)
+                        {
+                            if (expected_acks[i] == -1)
+                                continue;
+                            if (response.sequence == expected_acks[i])
+                            {
+                                expected_acks[i] = -1;
+                                ack_received[i] = 1;
+                            }
+                        }
+
+                    int all_acks_received = 1;
+                    for (i = 0; i < ack_received_qnt && all_acks_received; i++)
+                        if (!ack_received[i % ack_received_qnt])
+                            all_acks_received = 0;
+
+                    if (all_acks_received)
                     {
-                        all_acks_received = 0;
+                        printf("All acks received\n");
+                        window_start = window_end;
+                        window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
+                        break;
                     }
                 }
-
-                if (all_acks_received)
-                {
-                    window_start = window_end;
-                    window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
-                    break;
-                }
-
-                expected_ack++;
+            }
+            else
+            {
+                printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
             }
         }
+
+        // int expected_ack = window_start;
+        // while (!client_disconnected)
+        // {
+        //     await_ack_status = await_ack(socket_fd, expected_ack % MAX_SEQUENCE, &response, &read_fds, &timeout);
+        //     if (await_ack_status == -1)
+        //         client_disconnected = 1;
+        //     else if (await_ack_status)
+        //     {
+        //         ack_received[expected_ack % ack_received_qnt] = 1;
+
+        //         int all_acks_received = 1;
+        //         for (i = window_start; i < window_end && all_acks_received; i++)
+        //         {
+        //             if (!ack_received[i % ack_received_qnt])
+        //             {
+        //                 all_acks_received = 0;
+        //             }
+        //         }
+
+        //         if (all_acks_received)
+        //         {
+        //             printf("All acks received\n");
+        //             window_start = window_end;
+        //             window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
+        //             break;
+        //         }
+
+        //         expected_ack++;
+        //     }
+        // }
     }
 
     while (!client_disconnected)
