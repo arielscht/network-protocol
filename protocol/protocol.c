@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <fcntl.h>
 #include "protocol.h"
 #include "utils.h"
 
@@ -128,7 +129,6 @@ void send_text_message(int socket_fd, char *message)
     while (!client_disconnected && remaining_length > 0)
     {
         bzero(message_slice, MAX_DATA_SIZE);
-        int actual_sequence = sequence % MAX_SEQUENCE;
         int message_displacement = sequence * MAX_DATA_SIZE;
         int current_length = message_displacement + MAX_DATA_SIZE > message_length
                                  ? message_length - message_displacement
@@ -142,7 +142,7 @@ void send_text_message(int socket_fd, char *message)
         {
             if (is_able_to_write(socket_fd, &write_fds, &timeout))
             {
-                create_package(&package, TEXT, actual_sequence, message_slice);
+                create_package(&package, TEXT, sequence, message_slice);
                 if (write(socket_fd, &package, sizeof(package)) < 0)
                 {
                     client_disconnected = 1;
@@ -150,7 +150,7 @@ void send_text_message(int socket_fd, char *message)
                 }
                 else
                 {
-                    await_ack_status = await_ack(socket_fd, actual_sequence, &response, &read_fds, &timeout);
+                    await_ack_status = await_ack(socket_fd, sequence, &response, &read_fds, &timeout);
                     if (await_ack_status == -1)
                         client_disconnected = 1;
                     else if (await_ack_status)
@@ -171,7 +171,7 @@ void send_text_message(int socket_fd, char *message)
     {
         if (is_able_to_write(socket_fd, &write_fds, &timeout))
         {
-            int end_sequence = sequence % MAX_SEQUENCE;
+            int end_sequence = sequence + 1;
             create_package(&package, END, end_sequence, (char *)&message_type);
             if (write(socket_fd, &package, sizeof(package)) < 0)
             {
@@ -291,5 +291,171 @@ void wait_for_packages(int socket_fd)
             get_text_message(socket_fd);
             printf("\n------ End Client sent you ------\n");
         }
+    }
+}
+
+void send_file(int socket_fd, char *filepath)
+{
+    int await_ack_status;
+
+    int client_disconnected = 0;
+    fd_set write_fds, read_fds;
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    int ready_fds;
+    int message_type = MEDIA;
+
+    char buffer[MAX_DATA_SIZE];
+    int file, packages_size, package_index, package_qnt, i;
+    PACKAGE *packages, init_package, end_package, response;
+
+    bzero(buffer, MAX_DATA_SIZE);
+    packages_size = 5;
+    packages = calloc(packages_size, sizeof(PACKAGE));
+    package_index = 0;
+
+    if (!packages)
+    {
+        // handle error
+        exit(-1);
+    }
+
+    file = open(filepath, O_RDONLY);
+    if (file < 0)
+    {
+        // handle error
+        exit(-1);
+    }
+
+    while (read(file, buffer, MAX_DATA_SIZE - 1) > 0)
+    {
+        if (package_index == packages_size - 1)
+        {
+            packages_size += 5;
+            packages = realloc(packages, packages_size * sizeof(PACKAGE));
+            if (!packages)
+            {
+                // handle error
+                exit(-1);
+            }
+        }
+
+        buffer[MAX_DATA_SIZE] = '\0';
+        create_package(&packages[package_index], MEDIA, package_index, buffer);
+        bzero(buffer, MAX_DATA_SIZE);
+        package_index++;
+    }
+
+    package_qnt = package_index + 1;
+
+    while (!client_disconnected)
+    {
+        if (is_able_to_write(socket_fd, &write_fds, &timeout))
+        {
+            create_package(&init_package, INIT, 0, (char *)&message_type);
+            if (write(socket_fd, &init_package, sizeof(init_package)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+            }
+            else
+            {
+                await_ack_status = await_ack(socket_fd, 0, &response, &read_fds, &timeout);
+                if (await_ack_status == -1)
+                    client_disconnected = 1;
+                else if (await_ack_status)
+                    break;
+            }
+        }
+        else
+            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
+    }
+
+    int window_start = 0;
+    int window_end = WINDOW_SIZE;
+    int ack_received[WINDOW_SIZE];
+
+    bzero(ack_received, WINDOW_SIZE);
+
+    while (!client_disconnected)
+    {
+        i = window_start;
+        while (i < window_end)
+        {
+            if (!ack_received[i % WINDOW_SIZE])
+            {
+                if (is_able_to_write(socket_fd, &write_fds, &timeout))
+                {
+                    if (write(socket_fd, &packages[i], sizeof(packages[i])) < 0)
+                    {
+                        client_disconnected = 1;
+                        fprintf(stderr, "Client disconnected!\n");
+                    }
+                }
+                else
+                {
+                    fprintf(stderr, "Timeout occurred on writing package %d, trying again\n", i);
+                    continue;
+                }
+            }
+
+            i++;
+        }
+
+        int expected_ack = window_start;
+        while (!client_disconnected)
+        {
+            await_ack_status = await_ack(socket_fd, expected_ack, &response, &read_fds, &timeout);
+            if (await_ack_status == -1)
+                client_disconnected = 1;
+            else if (await_ack_status)
+            {
+                ack_received[expected_ack % WINDOW_SIZE] = 1;
+
+                int all_acks_received = 1;
+                for (i = window_start; i < window_end && all_acks_received; i++)
+                {
+                    if (!ack_received[i % WINDOW_SIZE])
+                    {
+                        all_acks_received = 0;
+                    }
+                }
+
+                if (all_acks_received)
+                {
+                    window_start += WINDOW_SIZE;
+                    window_end += WINDOW_SIZE;
+                    bzero(ack_received, WINDOW_SIZE);
+                    break;
+                }
+
+                expected_ack++;
+            }
+        }
+    }
+
+    while (!client_disconnected)
+    {
+        if (is_able_to_write(socket_fd, &write_fds, &timeout))
+        {
+            create_package(&end_package, END, 0, (char *)&message_type);
+            if (write(socket_fd, &end_package, sizeof(end_package)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+            }
+            else
+            {
+                await_ack_status = await_ack(socket_fd, 0, &response, &read_fds, &timeout);
+                if (await_ack_status == -1)
+                    client_disconnected = 1;
+                else if (await_ack_status)
+                    break;
+            }
+        }
+        else
+            fprintf(stderr, "Timeout occurred on writing END, trying again\n");
     }
 }

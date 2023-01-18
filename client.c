@@ -67,10 +67,11 @@ int main()
 
             if (access(filepath, R_OK) == 0)
             {
-                printf("The size of the file %s is: %ld\n", filepath, file_size(filepath));
+                printf("The size of the file %s is: %ld\n", filepath, size_of_file(filepath));
+                send_file(socket, filepath);
             }
             else
-                printf("The file %s does not exists\n", filepath);
+                printf("The file %s does not exists or it does not have the read permission\n", filepath);
         }
         else
         {

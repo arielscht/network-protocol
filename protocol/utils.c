@@ -125,7 +125,7 @@ void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *d
     generate_crc(package);
 }
 
-long int file_size(char *filepath)
+long int size_of_file(char *filepath)
 {
     FILE *fp = fopen(filepath, "r"); // assuming the file exists
 
