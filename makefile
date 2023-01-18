@@ -1,4 +1,4 @@
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -lm
 
 CLIENT_OBJECTS = client.o socket.o protocol.o utils.o
 SERVER_OBJECTS = server.o socket.o protocol.o utils.o
@@ -6,11 +6,11 @@ SERVER_OBJECTS = server.o socket.o protocol.o utils.o
 all: client server
 
 server: $(SERVER_OBJECTS)
-	gcc $(SERVER_OBJECTS) -o server
+	gcc $(SERVER_OBJECTS) -o server $(CFLAGS)
 
 client: $(CLIENT_OBJECTS)
-	gcc $(CLIENT_OBJECTS) -o client
-	
+	gcc $(CLIENT_OBJECTS) -o client $(CFLAGS)
+
 client.o: client.c
 	gcc -c client.c $(CFLAGS)
 
