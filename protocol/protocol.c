@@ -557,13 +557,15 @@ void send_file(int socket_fd, char *filepath)
         }
         printf("Bytes read: %d\n", bytes_read);
         create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_read);
-        packages[package_index].size = bytes_read;
         bzero(buffer, MAX_DATA_SIZE);
         package_index++;
         bytes_read = fread(buffer, 1, MAX_DATA_SIZE, file);
     }
-    create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_read);
-    package_index++;
+    if (bytes_read > 0)
+    {
+        create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_read);
+        package_index++;
+    }
 
     fclose(file);
     package_qnt = package_index;
