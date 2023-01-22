@@ -113,15 +113,15 @@ void generate_crc(PACKAGE *package)
     package->crc = crc;
 }
 
-void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data)
+void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data, int size)
 {
-    bzero(package, sizeof(*package));
+    bzero(package, sizeof(PACKAGE));
     package->init_marker = INIT_MARKER;
     package->type = type;
     package->sequence = sequence;
-    package->size = strlen(data);
+    package->size = size;
     printf("LENGTH: %d\n", package->size);
-    strcpy(package->data, data);
+    memcpy(package->data, data, size);
     generate_crc(package);
 }
 

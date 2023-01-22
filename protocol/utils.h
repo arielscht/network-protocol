@@ -11,7 +11,7 @@ int check_crc(PACKAGE *package);
 
 void generate_crc(PACKAGE *package);
 
-void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data);
+void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data, int size);
 
 long int size_of_file(char *filepath);
 
