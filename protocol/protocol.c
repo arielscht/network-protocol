@@ -85,6 +85,37 @@ int send_ack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval 
     return -1;
 }
 
+int send_nack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval *timeout)
+{
+    PACKAGE response;
+    bzero(&response, sizeof(response));
+    int client_disconnected = 0;
+    while (!client_disconnected)
+    {
+        if (is_able_to_write(socket_fd, write_fds, timeout))
+        {
+            create_package(&response, NACK, package->sequence, "", 0);
+            if (write(socket_fd, &response, sizeof(response)) < 0)
+            {
+                client_disconnected = 1;
+                fprintf(stderr, "Client disconnected!\n");
+            }
+            else
+            {
+                printf("NACK SENT %d\n", package->sequence);
+                return 1;
+            }
+        }
+        else
+        {
+            printf("Timeout occurred when sending NACK package\n");
+            continue;
+        }
+    }
+
+    return -1;
+}
+
 void send_text_message(int socket_fd, char *message)
 {
     int await_ack_status;
@@ -264,11 +295,16 @@ void get_media(int socket_fd)
     int ready_fds;
 
     char *filename;
-    int packages_size, package_index, i, j, k, start_index, end_index;
-    PACKAGE *packages, cur_package, last_packages[WINDOW_SIZE];
+    int packages_size, package_index, window_index, i, j, k, start_index, end_index;
+    PACKAGE *packages, cur_package;
+    int last_packages[WINDOW_SIZE];
+    for (i = 0; i < WINDOW_SIZE; i++)
+        last_packages[i] = -1;
 
     packages_size = 5;
     package_index = 0;
+    window_index = 0;
+
     packages = calloc(packages_size, sizeof(PACKAGE));
     if (!packages)
     {
@@ -310,14 +346,48 @@ void get_media(int socket_fd)
                     if (cur_package.type == MEDIA)
                     {
                         printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
+                        int window_is_odd = window_index % 2;
+                        int lower_bound = window_is_odd ? 8 : 0;
+                        int upper_bound = window_is_odd ? 15 : 7;
 
-                        if ((package_index >= 0 && package_index <= WINDOW_SIZE - 1) || last_packages[cur_package.sequence % WINDOW_SIZE].sequence != cur_package.sequence)
+                        if (last_packages[cur_package.sequence % WINDOW_SIZE] != cur_package.sequence && cur_package.sequence >= lower_bound && cur_package.sequence <= upper_bound)
                         {
-                            last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package;
+                            if (!check_crc(&cur_package))
+                            {
+                                char *result = calloc(sizeof(PACKAGE) * BITS_IN_BYTE_QNT + 1, sizeof(char));
+                                char *result_crc = calloc(8 + 1, sizeof(char));
+                                get_binary_string((char *)&cur_package, result, sizeof(PACKAGE));
+                                get_binary_string((char *)&cur_package.crc, result_crc, 1);
+                                result[sizeof(PACKAGE) * BITS_IN_BYTE_QNT] = '\0';
+                                result_crc[8] = '\0';
+
+                                printf("Hex crc %x\n", cur_package.crc);
+                                printf("Binarized string: %s\n", result);
+                                printf("Binarized crc: %s\n", result_crc);
+                                printf("Data size %d\n", cur_package.size);
+                                printf("result size %ld\n", strlen(result));
+                                printf("result crc size %ld\n", strlen(result_crc));
+                                printf("crc check: %d\n", check_crc(&cur_package));
+
+                                printf("CRC FAIL\n");
+                                continue;
+                            }
+
+                            last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
                             printf("Not duplicated ; index: %d\n", package_index);
                             packages[package_index] = cur_package;
                             printf("Package sequence: %d\n", packages[package_index].sequence);
                             package_index++;
+                            if (package_index % WINDOW_SIZE == 0)
+                            {
+                                window_index++;
+                                for (i = 0; i < WINDOW_SIZE; i++)
+                                    last_packages[i] = -1;
+                            }
+                        }
+                        else
+                        {
+                            printf("The package of sequence %d is duplicated", cur_package.sequence);
                         }
                     }
                     else
@@ -380,7 +450,7 @@ void get_media(int socket_fd)
         printf("Sorted incorrectly!\n");
 
     for (i = 0; i < packages_qnt; i++)
-        fwrite(packages[i].data, packages[i].size, 1, file);
+        fwrite(packages[i].data, 1, packages[i].size, file);
 
     fclose(file);
 }
