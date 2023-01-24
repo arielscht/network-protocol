@@ -34,7 +34,7 @@ void listen_message_mode(int sock_fd)
 
 int main()
 {
-    char *interface_name = "vboxnet0";
+    char *interface_name = "enp2s0";
     int socket = 0;
     char command[MAX_COMMAND_SIZE];
     pthread_t threads_id[2];

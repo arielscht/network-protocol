@@ -9,6 +9,10 @@
 #define MAX_TEXT_MESSAGE_SIZE 1000
 #define BITS_IN_BYTE_QNT 8
 
+#define VLAN_PROTOCOL_ONE 0x88
+#define VLAN_PROTOCOL_TWO 0x81
+#define ESCAPE 0xff
+
 #include <sys/select.h>
 
 typedef enum
