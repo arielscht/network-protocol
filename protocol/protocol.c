@@ -520,11 +520,12 @@ void send_file(int socket_fd, char *filepath)
     int message_type = MEDIA;
 
     FILE *file;
-    char buffer[MAX_DATA_SIZE];
-    int packages_size, package_index, package_qnt, i;
+    char buffer[MAX_DATA_SIZE], current_byte[1], last_byte[1];
+    int packages_size, package_index, package_qnt, set_next_byte_as_escape, is_vlan_byte_one, is_vlan_byte_two, bytes_count, i, j, k;
     PACKAGE *packages, init_package, end_package, response;
-
+    long int all_bytes = 0;
     bzero(buffer, MAX_DATA_SIZE);
+    bzero(current_byte, sizeof(current_byte));
     packages_size = 5;
     packages = calloc(packages_size, sizeof(PACKAGE));
     package_index = 0;
@@ -542,7 +543,15 @@ void send_file(int socket_fd, char *filepath)
         exit(-1);
     }
 
-    int bytes_read = fread(buffer, 1, MAX_DATA_SIZE, file);
+    char escape[1];
+    bzero(escape, sizeof(escape));
+
+    for (i = 0; i < BITS_IN_BYTE_QNT; i++)
+        if (ESCAPE & (1 << i))
+            escape[0] |= (1 << i);
+
+    bytes_count = 0;
+    int bytes_read = fread(current_byte, 1, 1, file);
     while (bytes_read != 0)
     {
         if (package_index == packages_size - 1)
@@ -555,20 +564,138 @@ void send_file(int socket_fd, char *filepath)
                 exit(-1);
             }
         }
-        printf("Bytes read: %d\n", bytes_read);
-        create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_read);
-        bzero(buffer, MAX_DATA_SIZE);
-        package_index++;
-        bytes_read = fread(buffer, 1, MAX_DATA_SIZE, file);
+
+        is_vlan_byte_one = 1;
+        for (i = 0; i < BITS_IN_BYTE_QNT && is_vlan_byte_one; i++)
+            if ((VLAN_PROTOCOL_ONE & (1 << i)) != (current_byte[0] & (1 << i)))
+                is_vlan_byte_one = 0;
+
+        is_vlan_byte_two = 1;
+        for (i = 0; i < BITS_IN_BYTE_QNT && is_vlan_byte_two; i++)
+            if ((VLAN_PROTOCOL_TWO & (1 << i)) != (current_byte[0] & (1 << i)))
+                is_vlan_byte_two = 0;
+
+        if (bytes_count == MAX_DATA_SIZE - 1)
+        {
+            if (is_vlan_byte_one || is_vlan_byte_two)
+            {
+                create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_count);
+                bzero(buffer, MAX_DATA_SIZE);
+                package_index++;
+                bytes_count = 0;
+
+                memcpy(buffer + bytes_count, current_byte, sizeof(current_byte));
+                bytes_count++;
+                all_bytes++;
+
+                memcpy(buffer + bytes_count, escape, sizeof(escape));
+                bytes_count++;
+            }
+            else
+            {
+                memcpy(buffer + bytes_count, current_byte, sizeof(current_byte));
+                bytes_count++;
+                all_bytes++;
+
+                create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_count);
+                bzero(buffer, MAX_DATA_SIZE);
+                package_index++;
+                bytes_count = 0;
+            }
+        }
+        else
+        {
+            memcpy(buffer + bytes_count, current_byte, sizeof(current_byte));
+            bytes_count++;
+            all_bytes++;
+
+            if (is_vlan_byte_one || is_vlan_byte_two)
+            {
+                memcpy(buffer + bytes_count, escape, sizeof(escape));
+                bytes_count++;
+
+                if (bytes_count == MAX_DATA_SIZE)
+                {
+                    create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_count);
+                    bzero(buffer, MAX_DATA_SIZE);
+                    package_index++;
+                    bytes_count = 0;
+                }
+            }
+        }
+
+        bzero(current_byte, sizeof(current_byte));
+        bytes_read = fread(current_byte, 1, 1, file);
     }
-    if (bytes_read > 0)
+    if (bytes_count > 0)
     {
-        create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_read);
+        create_package(&packages[package_index], MEDIA, package_index % MAX_SEQUENCE, buffer, bytes_count);
         package_index++;
     }
 
     fclose(file);
     package_qnt = package_index;
+
+    int all_escapes_set = 1;
+    i = 0;
+    j = 0;
+    for (; i < package_qnt && all_escapes_set;)
+    {
+        // printf("i: %d\n", i);
+        // printf("package size: %d\n", packages[i].size);
+        for (; j < packages[i].size && all_escapes_set;)
+        {
+            // printf("j: %d\n", j);
+            int is_vlan_byte_one = 1;
+            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_one; k++)
+                if ((VLAN_PROTOCOL_ONE & (1 << k)) != (packages[i].data[j] & (1 << k)))
+                    is_vlan_byte_one = 0;
+
+            int is_vlan_byte_two = 1;
+            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_two; k++)
+                if ((VLAN_PROTOCOL_TWO & (1 << k)) != (packages[i].data[j] & (1 << k)))
+                    is_vlan_byte_two = 0;
+
+            if (is_vlan_byte_one || is_vlan_byte_two)
+            {
+                int package_index_to_search;
+                int data_index_to_search;
+
+                package_index_to_search = i;
+                data_index_to_search = j + 1;
+                j += 2; // jump supposed escape byte
+                if (j >= packages[i].size)
+                {
+                    i++;
+                    j = 0;
+                }
+
+                int is_escape = 1;
+                for (k = 0; k < BITS_IN_BYTE_QNT && is_escape; k++)
+                    if ((ESCAPE & (1 << k)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << k)))
+                        is_escape = 0;
+
+                if (!is_escape)
+                    all_escapes_set = 0;
+            }
+            else
+            {
+                j++;
+                if (j >= packages[i].size)
+                {
+                    i++;
+                    j = 0;
+                }
+            }
+        }
+    }
+
+    if (all_escapes_set)
+        printf("All escapes were set\n");
+    else
+        printf("All escapes were not set");
+
+    // return;
 
     while (!client_disconnected)
     {
