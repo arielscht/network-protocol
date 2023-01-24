@@ -431,6 +431,11 @@ void get_media(int socket_fd)
     else
         printf("Sorted incorrectly!\n");
 
+    char escape = ESCAPE;
+    char vlan1 = VLAN_PROTOCOL_ONE;
+    char vlan2 = VLAN_PROTOCOL_TWO;
+    int is_vlan_byte;
+
     int all_escapes_set = 1;
     i = 0;
     j = 0;
@@ -440,23 +445,18 @@ void get_media(int socket_fd)
         // printf("package size: %d\n", packages[i].size);
         for (; j < packages[i].size && all_escapes_set;)
         {
-            // printf("j: %d\n", j);
-            int is_vlan_byte_one = 1;
-            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_one; k++)
-                if ((VLAN_PROTOCOL_ONE & (1 << k)) != (packages[i].data[j] & (1 << k)))
-                    is_vlan_byte_one = 0;
+            is_vlan_byte = 0;
+            if (packages[i].data[j] == vlan1)
+                is_vlan_byte = 1;
+            else if (packages[i].data[j] == vlan2)
+                is_vlan_byte = 1;
 
-            int is_vlan_byte_two = 1;
-            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_two; k++)
-                if ((VLAN_PROTOCOL_TWO & (1 << k)) != (packages[i].data[j] & (1 << k)))
-                    is_vlan_byte_two = 0;
-
-            if ((is_vlan_byte_one || is_vlan_byte_two) && j == packages[i].size - 1)
+            if (is_vlan_byte && j == packages[i].size - 1)
             {
                 printf("WRONG!!!!!");
             }
 
-            if (is_vlan_byte_one || is_vlan_byte_two)
+            if (is_vlan_byte)
             {
                 int package_index_to_search;
                 int data_index_to_search;
@@ -470,10 +470,9 @@ void get_media(int socket_fd)
                     j = 0;
                 }
 
-                int is_escape = 1;
-                for (k = 0; k < BITS_IN_BYTE_QNT && is_escape; k++)
-                    if ((ESCAPE & (1 << k)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << k)))
-                        is_escape = 0;
+                int is_escape = 0;
+                if (packages[package_index_to_search].data[data_index_to_search] == escape)
+                    is_escape = 1;
 
                 if (!is_escape)
                     all_escapes_set = 0;
@@ -499,30 +498,22 @@ void get_media(int socket_fd)
     {
         for (j = 0; j < packages[i].size; j++)
         {
-            int is_escape = 1;
-            for (k = 0; k < BITS_IN_BYTE_QNT && is_escape; k++)
-                if ((ESCAPE & (1 << k)) != (packages[i].data[j] & (1 << k)))
-                    is_escape = 0;
 
+            int is_escape = 0;
+            if (packages[i].data[j] == escape)
+                is_escape = 1;
             if (is_escape)
             {
-                int package_index_to_search;
-                int data_index_to_search;
+                int package_index_to_search = i;
+                int data_index_to_search = j - 1;
 
-                package_index_to_search = i;
-                data_index_to_search = j - 1;
+                is_vlan_byte = 0;
+                if (packages[package_index_to_search].data[data_index_to_search] == vlan1)
+                    is_vlan_byte = 1;
+                else if (packages[package_index_to_search].data[data_index_to_search] == vlan2)
+                    is_vlan_byte = 1;
 
-                int is_vlan_byte_one = 1;
-                for (l = 0; l < BITS_IN_BYTE_QNT && is_vlan_byte_one; l++)
-                    if ((VLAN_PROTOCOL_ONE & (1 << l)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << l)))
-                        is_vlan_byte_one = 0;
-
-                int is_vlan_byte_two = 1;
-                for (l = 0; l < BITS_IN_BYTE_QNT && is_vlan_byte_two; l++)
-                    if ((VLAN_PROTOCOL_TWO & (1 << l)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << l)))
-                        is_vlan_byte_two = 0;
-
-                if (is_vlan_byte_one || is_vlan_byte_two)
+                if (is_vlan_byte)
                     continue;
             }
 
