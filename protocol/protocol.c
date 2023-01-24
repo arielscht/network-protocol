@@ -295,7 +295,7 @@ void get_media(int socket_fd)
     int ready_fds;
 
     char *filename;
-    int packages_size, package_index, window_index, i, j, k, start_index, end_index;
+    int packages_size, package_index, window_index, i, j, k, l, start_index, end_index;
     PACKAGE *packages, cur_package;
     int last_packages[WINDOW_SIZE];
     for (i = 0; i < WINDOW_SIZE; i++)
@@ -352,37 +352,19 @@ void get_media(int socket_fd)
 
                         if (last_packages[cur_package.sequence % WINDOW_SIZE] != cur_package.sequence && cur_package.sequence >= lower_bound && cur_package.sequence <= upper_bound)
                         {
-                            if (!check_crc(&cur_package))
+                            if (check_crc(&cur_package))
                             {
-                                char *result = calloc(sizeof(PACKAGE) * BITS_IN_BYTE_QNT + 1, sizeof(char));
-                                char *result_crc = calloc(8 + 1, sizeof(char));
-                                get_binary_string((char *)&cur_package, result, sizeof(PACKAGE));
-                                get_binary_string((char *)&cur_package.crc, result_crc, 1);
-                                result[sizeof(PACKAGE) * BITS_IN_BYTE_QNT] = '\0';
-                                result_crc[8] = '\0';
-
-                                printf("Hex crc %x\n", cur_package.crc);
-                                printf("Binarized string: %s\n", result);
-                                printf("Binarized crc: %s\n", result_crc);
-                                printf("Data size %d\n", cur_package.size);
-                                printf("result size %ld\n", strlen(result));
-                                printf("result crc size %ld\n", strlen(result_crc));
-                                printf("crc check: %d\n", check_crc(&cur_package));
-
-                                printf("CRC FAIL\n");
-                                continue;
-                            }
-
-                            last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
-                            printf("Not duplicated ; index: %d\n", package_index);
-                            packages[package_index] = cur_package;
-                            printf("Package sequence: %d\n", packages[package_index].sequence);
-                            package_index++;
-                            if (package_index % WINDOW_SIZE == 0)
-                            {
-                                window_index++;
-                                for (i = 0; i < WINDOW_SIZE; i++)
-                                    last_packages[i] = -1;
+                                last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
+                                printf("Not duplicated ; index: %d\n", package_index);
+                                packages[package_index] = cur_package;
+                                printf("Package sequence: %d\n", packages[package_index].sequence);
+                                package_index++;
+                                if (package_index % WINDOW_SIZE == 0)
+                                {
+                                    window_index++;
+                                    for (i = 0; i < WINDOW_SIZE; i++)
+                                        last_packages[i] = -1;
+                                }
                             }
                         }
                         else
@@ -449,8 +431,104 @@ void get_media(int socket_fd)
     else
         printf("Sorted incorrectly!\n");
 
+    int all_escapes_set = 1;
+    i = 0;
+    j = 0;
+    for (; i < packages_qnt && all_escapes_set;)
+    {
+        // printf("i: %d\n", i);
+        // printf("package size: %d\n", packages[i].size);
+        for (; j < packages[i].size && all_escapes_set;)
+        {
+            // printf("j: %d\n", j);
+            int is_vlan_byte_one = 1;
+            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_one; k++)
+                if ((VLAN_PROTOCOL_ONE & (1 << k)) != (packages[i].data[j] & (1 << k)))
+                    is_vlan_byte_one = 0;
+
+            int is_vlan_byte_two = 1;
+            for (k = 0; k < BITS_IN_BYTE_QNT && is_vlan_byte_two; k++)
+                if ((VLAN_PROTOCOL_TWO & (1 << k)) != (packages[i].data[j] & (1 << k)))
+                    is_vlan_byte_two = 0;
+
+            if ((is_vlan_byte_one || is_vlan_byte_two) && j == packages[i].size - 1)
+            {
+                printf("WRONG!!!!!");
+            }
+
+            if (is_vlan_byte_one || is_vlan_byte_two)
+            {
+                int package_index_to_search;
+                int data_index_to_search;
+
+                package_index_to_search = i;
+                data_index_to_search = j + 1;
+                j += 2; // jump supposed escape byte
+                if (j >= packages[i].size)
+                {
+                    i++;
+                    j = 0;
+                }
+
+                int is_escape = 1;
+                for (k = 0; k < BITS_IN_BYTE_QNT && is_escape; k++)
+                    if ((ESCAPE & (1 << k)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << k)))
+                        is_escape = 0;
+
+                if (!is_escape)
+                    all_escapes_set = 0;
+            }
+            else
+            {
+                j++;
+                if (j >= packages[i].size)
+                {
+                    i++;
+                    j = 0;
+                }
+            }
+        }
+    }
+
+    if (all_escapes_set)
+        printf("All escapes were set\n");
+    else
+        printf("All escapes were not set");
+
     for (i = 0; i < packages_qnt; i++)
-        fwrite(packages[i].data, 1, packages[i].size, file);
+    {
+        for (j = 0; j < packages[i].size; j++)
+        {
+            int is_escape = 1;
+            for (k = 0; k < BITS_IN_BYTE_QNT && is_escape; k++)
+                if ((ESCAPE & (1 << k)) != (packages[i].data[j] & (1 << k)))
+                    is_escape = 0;
+
+            if (is_escape)
+            {
+                int package_index_to_search;
+                int data_index_to_search;
+
+                package_index_to_search = i;
+                data_index_to_search = j - 1;
+
+                int is_vlan_byte_one = 1;
+                for (l = 0; l < BITS_IN_BYTE_QNT && is_vlan_byte_one; l++)
+                    if ((VLAN_PROTOCOL_ONE & (1 << l)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << l)))
+                        is_vlan_byte_one = 0;
+
+                int is_vlan_byte_two = 1;
+                for (l = 0; l < BITS_IN_BYTE_QNT && is_vlan_byte_two; l++)
+                    if ((VLAN_PROTOCOL_TWO & (1 << l)) != (packages[package_index_to_search].data[data_index_to_search] & (1 << l)))
+                        is_vlan_byte_two = 0;
+
+                if (is_vlan_byte_one || is_vlan_byte_two)
+                    continue;
+            }
+
+            fwrite(&packages[i].data[j], 1, 1, file);
+        }
+    }
 
     fclose(file);
 }
