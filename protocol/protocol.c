@@ -128,7 +128,6 @@ void send_text_message(int socket_fd, char *message)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    int ready_fds;
     int message_length = strlen(message);
     int remaining_length = message_length;
     int sequence = 0;
@@ -236,9 +235,6 @@ void get_text_message(int socket_fd)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    int ready_fds;
-
-    int write_response;
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
 
@@ -292,10 +288,8 @@ void get_media(int socket_fd)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    int ready_fds;
-
     char *filename;
-    int packages_size, package_index, window_index, i, j, k, l, start_index, end_index;
+    int packages_size, package_index, window_index, i, j, k, start_index, end_index;
     PACKAGE *packages, cur_package;
     int last_packages[WINDOW_SIZE];
     for (i = 0; i < WINDOW_SIZE; i++)
@@ -532,8 +526,6 @@ void wait_for_packages(int socket_fd)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    int ready_fds;
-
     PACKAGE package;
 
     while (1)
@@ -585,11 +577,10 @@ void send_file(int socket_fd, char *filepath)
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    int ready_fds;
     int message_type = MEDIA;
     FILE *file;
     char buffer[MAX_DATA_SIZE], current_byte;
-    int packages_size, package_index, package_qnt, set_next_byte_as_escape, is_vlan_byte, bytes_count, i, j, k;
+    int packages_size, package_index, package_qnt, is_vlan_byte, bytes_count, i, j;
     PACKAGE *packages, init_package, end_package, response;
     long int all_bytes = 0;
     bzero(buffer, MAX_DATA_SIZE);

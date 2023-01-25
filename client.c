@@ -37,7 +37,6 @@ int main()
     char *interface_name = "enp2s0f1";
     int socket = 0;
     char command[MAX_COMMAND_SIZE];
-    pthread_t threads_id[2];
 
     socket = create_raw_socket(interface_name);
 
