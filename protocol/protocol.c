@@ -476,11 +476,8 @@ void get_media(int socket_fd)
                 is_escape = 1;
             if (is_escape)
             {
-                int package_index_to_search = i;
-                int data_index_to_search = j - 1;
-
                 is_vlan_byte = 0;
-                if (packages[package_index_to_search].data[data_index_to_search] == vlan1 || packages[package_index_to_search].data[data_index_to_search] == vlan2)
+                if (packages[i].data[j - 1] == vlan1 || packages[i].data[j - 1] == vlan2)
                     is_vlan_byte = 1;
 
                 if (is_vlan_byte)
@@ -556,7 +553,7 @@ void send_file(int socket_fd, char *filepath)
     int message_type = MEDIA;
     FILE *file;
     char buffer[MAX_DATA_SIZE], current_byte;
-    int packages_size, package_index, package_qnt, is_vlan_byte, bytes_count, i, j;
+    int packages_size, package_index, package_qnt, is_vlan_byte, bytes_count, i;
     PACKAGE *packages, init_package, end_package, response;
     long int all_bytes = 0;
     bzero(buffer, MAX_DATA_SIZE);
@@ -661,61 +658,6 @@ void send_file(int socket_fd, char *filepath)
     }
 
     fclose(file);
-    package_qnt = package_index;
-
-    int all_escapes_set = 1;
-    i = 0;
-    j = 0;
-    for (; i < package_qnt && all_escapes_set;)
-    {
-        // printf("i: %d\n", i);
-        // printf("package size: %d\n", packages[i].size);
-        for (; j < packages[i].size && all_escapes_set;)
-        {
-            // printf("j: %d\n", j);
-            is_vlan_byte = 0;
-            if (current_byte == vlan1 || current_byte == vlan2)
-                is_vlan_byte = 1;
-
-            if (is_vlan_byte)
-            {
-                int package_index_to_search;
-                int data_index_to_search;
-
-                package_index_to_search = i;
-                data_index_to_search = j + 1;
-                j += 2; // jump supposed escape byte
-                if (j >= packages[i].size)
-                {
-                    i++;
-                    j = 0;
-                }
-
-                int is_escape = 0;
-                if (packages[package_index_to_search].data[data_index_to_search] == escape)
-                    is_escape = 1;
-
-                if (!is_escape)
-                    all_escapes_set = 0;
-            }
-            else
-            {
-                j++;
-                if (j >= packages[i].size)
-                {
-                    i++;
-                    j = 0;
-                }
-            }
-        }
-    }
-
-    if (all_escapes_set)
-        printf("All escapes were set\n");
-    else
-        printf("All escapes were not set");
-
-    // return;
 
     while (!client_disconnected)
     {
@@ -740,6 +682,7 @@ void send_file(int socket_fd, char *filepath)
             fprintf(stderr, "Timeout occurred on writing init, trying again\n");
     }
 
+    package_qnt = package_index;
     printf("INIT ACK RECEIVED SUCCESS\n");
     printf("There are %d packages to be sent\n", package_qnt);
 
@@ -868,37 +811,6 @@ void send_file(int socket_fd, char *filepath)
                 break;
             }
         }
-
-        // int expected_ack = window_start;
-        // while (!client_disconnected)
-        // {
-        //     await_ack_status = await_ack(socket_fd, expected_ack % MAX_SEQUENCE, &response, &read_fds, &timeout);
-        //     if (await_ack_status == -1)
-        //         client_disconnected = 1;
-        //     else if (await_ack_status)
-        //     {
-        //         ack_received[expected_ack % ack_received_qnt] = 1;
-
-        //         int all_acks_received = 1;
-        //         for (i = window_start; i < window_end && all_acks_received; i++)
-        //         {
-        //             if (!ack_received[i % ack_received_qnt])
-        //             {
-        //                 all_acks_received = 0;
-        //             }
-        //         }
-
-        //         if (all_acks_received)
-        //         {
-        //             printf("All acks received\n");
-        //             window_start = window_end;
-        //             window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
-        //             break;
-        //         }
-
-        //         expected_ack++;
-        //     }
-        // }
     }
 
     while (!client_disconnected)

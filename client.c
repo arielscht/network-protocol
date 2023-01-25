@@ -34,7 +34,7 @@ void listen_message_mode(int sock_fd)
 
 int main()
 {
-    char *interface_name = "enp2s0f1";
+    char *interface_name = "enp5s0";
     int socket = 0;
     char command[MAX_COMMAND_SIZE];
 
