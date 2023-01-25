@@ -3,6 +3,10 @@
 
 #include "protocol.h"
 
+int is_able_to_write(int socket_fd, fd_set *write_fds, struct timeval *timeout);
+
+int is_able_to_read(int socket_fd, fd_set *read_fds, struct timeval *timeout);
+
 void get_binary_string(char *data, char *result, int data_size);
 
 void get_crc_encoded_data(char *data, char *result, int data_size);

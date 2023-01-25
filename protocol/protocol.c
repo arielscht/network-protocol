@@ -8,26 +8,6 @@
 #include "utils.h"
 #include <libgen.h>
 
-int is_able_to_write(int socket_fd, fd_set *write_fds, struct timeval *timeout)
-{
-    FD_ZERO(write_fds);
-    FD_SET(socket_fd, write_fds);
-    int ready_fds = select(socket_fd + 1, NULL, write_fds, NULL, timeout);
-    if (ready_fds > 0 && FD_ISSET(socket_fd, write_fds))
-        return 1;
-    return 0;
-}
-
-int is_able_to_read(int socket_fd, fd_set *read_fds, struct timeval *timeout)
-{
-    FD_ZERO(read_fds);
-    FD_SET(socket_fd, read_fds);
-    int ready_fds = select(socket_fd + 1, read_fds, NULL, NULL, timeout);
-    if (ready_fds > 0 && FD_ISSET(socket_fd, read_fds))
-        return 1;
-    return 0;
-}
-
 int await_ack(int socket_fd, int sequence, PACKAGE *response, fd_set *read_fds, struct timeval *timeout)
 {
     if (is_able_to_read(socket_fd, read_fds, timeout))
