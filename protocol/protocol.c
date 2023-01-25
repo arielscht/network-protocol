@@ -420,9 +420,7 @@ void get_media(int socket_fd)
         for (; j < packages[i].size && all_escapes_set;)
         {
             is_vlan_byte = 0;
-            if (packages[i].data[j] == vlan1)
-                is_vlan_byte = 1;
-            else if (packages[i].data[j] == vlan2)
+            if (packages[i].data[j] == vlan1 || packages[i].data[j] == vlan2)
                 is_vlan_byte = 1;
 
             if (is_vlan_byte && j == packages[i].size - 1)
@@ -482,9 +480,7 @@ void get_media(int socket_fd)
                 int data_index_to_search = j - 1;
 
                 is_vlan_byte = 0;
-                if (packages[package_index_to_search].data[data_index_to_search] == vlan1)
-                    is_vlan_byte = 1;
-                else if (packages[package_index_to_search].data[data_index_to_search] == vlan2)
+                if (packages[package_index_to_search].data[data_index_to_search] == vlan1 || packages[package_index_to_search].data[data_index_to_search] == vlan2)
                     is_vlan_byte = 1;
 
                 if (is_vlan_byte)
@@ -565,6 +561,7 @@ void send_file(int socket_fd, char *filepath)
     long int all_bytes = 0;
     bzero(buffer, MAX_DATA_SIZE);
     bzero(&current_byte, sizeof(current_byte));
+
     packages_size = 5;
     packages = calloc(packages_size, sizeof(PACKAGE));
     package_index = 0;
@@ -602,9 +599,7 @@ void send_file(int socket_fd, char *filepath)
         }
 
         is_vlan_byte = 0;
-        if (current_byte == vlan1)
-            is_vlan_byte = 1;
-        else if (current_byte == vlan2)
+        if (current_byte == vlan1 || current_byte == vlan2)
             is_vlan_byte = 1;
 
         if (bytes_count == MAX_DATA_SIZE - 1)
@@ -679,9 +674,7 @@ void send_file(int socket_fd, char *filepath)
         {
             // printf("j: %d\n", j);
             is_vlan_byte = 0;
-            if (current_byte == vlan1)
-                is_vlan_byte = 1;
-            else if (current_byte == vlan2)
+            if (current_byte == vlan1 || current_byte == vlan2)
                 is_vlan_byte = 1;
 
             if (is_vlan_byte)
