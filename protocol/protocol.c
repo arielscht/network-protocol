@@ -105,8 +105,7 @@ void send_text_message(int socket_fd, char *message)
     fd_set write_fds, read_fds;
 
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     int message_length = strlen(message);
     int remaining_length = message_length;
@@ -212,8 +211,7 @@ void get_text_message(int socket_fd)
 
     fd_set write_fds, read_fds;
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
@@ -262,11 +260,11 @@ void get_text_message(int socket_fd)
 void get_media(int socket_fd)
 {
     int client_disconnected = 0;
+    int crc_check, not_duplicated;
 
     fd_set write_fds, read_fds;
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     char *filename;
     int packages_size, package_index, window_index, i, j, k, start_index, end_index;
@@ -312,63 +310,63 @@ void get_media(int socket_fd)
             }
             else
             {
-                if (cur_package.init_marker != INIT_MARKER)
+                crc_check = 0;
+                if (cur_package.init_marker != INIT_MARKER || (cur_package.type != MEDIA && cur_package.type != END))
                     continue;
 
-                if (cur_package.type == MEDIA || cur_package.type == END)
+                if (cur_package.type == MEDIA)
                 {
-                    if (cur_package.type == MEDIA)
-                    {
-                        printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
-                        int window_is_odd = window_index % 2;
-                        int lower_bound = window_is_odd ? 8 : 0;
-                        int upper_bound = window_is_odd ? 15 : 7;
+                    printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
+                    int window_is_odd = window_index % 2;
+                    int lower_bound = window_is_odd ? WINDOW_SIZE : 0;
+                    int upper_bound = window_is_odd ? WINDOW_SIZE * 2 - 1 : WINDOW_SIZE - 1;
+                    not_duplicated = last_packages[cur_package.sequence % WINDOW_SIZE] != cur_package.sequence && cur_package.sequence >= lower_bound && cur_package.sequence <= upper_bound;
 
-                        if (last_packages[cur_package.sequence % WINDOW_SIZE] != cur_package.sequence && cur_package.sequence >= lower_bound && cur_package.sequence <= upper_bound)
+                    if (not_duplicated)
+                    {
+                        crc_check = check_crc(&cur_package);
+                        if (crc_check)
                         {
-                            if (check_crc(&cur_package))
+                            last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
+                            printf("Not duplicated ; index: %d\n", package_index);
+                            packages[package_index] = cur_package;
+                            printf("Package sequence: %d\n", packages[package_index].sequence);
+                            package_index++;
+                            if (package_index % WINDOW_SIZE == 0)
                             {
-                                last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
-                                printf("Not duplicated ; index: %d\n", package_index);
-                                packages[package_index] = cur_package;
-                                printf("Package sequence: %d\n", packages[package_index].sequence);
-                                package_index++;
-                                if (package_index % WINDOW_SIZE == 0)
-                                {
-                                    window_index++;
-                                    for (i = 0; i < WINDOW_SIZE; i++)
-                                        last_packages[i] = -1;
-                                }
+                                window_index++;
+                                for (i = 0; i < WINDOW_SIZE; i++)
+                                    last_packages[i] = -1;
                             }
-                        }
-                        else
-                        {
-                            printf("The package of sequence %d is duplicated", cur_package.sequence);
                         }
                     }
                     else
                     {
-                        printf("Inside end ; index: %d\n", package_index);
-                        filename = calloc(cur_package.size, sizeof(char));
-                        if (!filename)
-                        {
-                            // handle error
-                            exit(-1);
-                        }
-
-                        strcpy(filename, cur_package.data);
+                        printf("The package of sequence %d is duplicated", cur_package.sequence);
+                    }
+                }
+                else
+                {
+                    printf("Inside end ; index: %d\n", package_index);
+                    filename = calloc(cur_package.size, sizeof(char));
+                    if (!filename)
+                    {
+                        // handle error
+                        exit(-1);
                     }
 
-                    send_ack(socket_fd, &cur_package, &write_fds, &timeout);
+                    strcpy(filename, cur_package.data);
                 }
-                // Do not forget to treat other errors
-                continue;
+
+                if (crc_check || !not_duplicated)
+                    send_ack(socket_fd, &cur_package, &write_fds, &timeout);
+                else
+                    send_nack(socket_fd, &cur_package, &write_fds, &timeout);
             }
         }
         else
         {
             fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
-            continue;
         }
     }
 
@@ -389,82 +387,82 @@ void get_media(int socket_fd)
         exit(-1);
     }
 
-    int sorted = 1;
-    for (i = 0; i < ceil((double)packages_qnt / WINDOW_SIZE) && sorted; i++)
-    {
-        int end = (packages_qnt > i * WINDOW_SIZE + WINDOW_SIZE ? i * WINDOW_SIZE + WINDOW_SIZE : packages_qnt);
+    // int sorted = 1;
+    // for (i = 0; i < ceil((double)packages_qnt / WINDOW_SIZE) && sorted; i++)
+    // {
+    //     int end = (packages_qnt > i * WINDOW_SIZE + WINDOW_SIZE ? i * WINDOW_SIZE + WINDOW_SIZE : packages_qnt);
 
-        for (j = i * WINDOW_SIZE; j < end - 1 && sorted; j++)
-            for (k = j + 1; k < end && sorted; k++)
-                if (packages[k].sequence < packages[j].sequence)
-                    sorted = 0;
-    }
+    //     for (j = i * WINDOW_SIZE; j < end - 1 && sorted; j++)
+    //         for (k = j + 1; k < end && sorted; k++)
+    //             if (packages[k].sequence < packages[j].sequence)
+    //                 sorted = 0;
+    // }
 
-    if (sorted)
-        printf("Sorted correctly!\n");
-    else
-        printf("Sorted incorrectly!\n");
+    // if (sorted)
+    //     printf("Sorted correctly!\n");
+    // else
+    //     printf("Sorted incorrectly!\n");
 
     char escape = ESCAPE;
     char vlan1 = VLAN_PROTOCOL_ONE;
     char vlan2 = VLAN_PROTOCOL_TWO;
     int is_vlan_byte;
 
-    int all_escapes_set = 1;
-    i = 0;
-    j = 0;
-    for (; i < packages_qnt && all_escapes_set;)
-    {
-        // printf("i: %d\n", i);
-        // printf("package size: %d\n", packages[i].size);
-        for (; j < packages[i].size && all_escapes_set;)
-        {
-            is_vlan_byte = 0;
-            if (packages[i].data[j] == vlan1 || packages[i].data[j] == vlan2)
-                is_vlan_byte = 1;
+    // int all_escapes_set = 1;
+    // i = 0;
+    // j = 0;
+    // for (; i < packages_qnt && all_escapes_set;)
+    // {
+    //     // printf("i: %d\n", i);
+    //     // printf("package size: %d\n", packages[i].size);
+    //     for (; j < packages[i].size && all_escapes_set;)
+    //     {
+    //         is_vlan_byte = 0;
+    //         if (packages[i].data[j] == vlan1 || packages[i].data[j] == vlan2)
+    //             is_vlan_byte = 1;
 
-            if (is_vlan_byte && j == packages[i].size - 1)
-            {
-                printf("WRONG!!!!!");
-            }
+    //         if (is_vlan_byte && j == packages[i].size - 1)
+    //         {
+    //             printf("WRONG!!!!!");
+    //         }
 
-            if (is_vlan_byte)
-            {
-                int package_index_to_search;
-                int data_index_to_search;
+    //         if (is_vlan_byte)
+    //         {
+    //             int package_index_to_search;
+    //             int data_index_to_search;
 
-                package_index_to_search = i;
-                data_index_to_search = j + 1;
-                j += 2; // jump supposed escape byte
-                if (j >= packages[i].size)
-                {
-                    i++;
-                    j = 0;
-                }
+    //             package_index_to_search = i;
+    //             data_index_to_search = j + 1;
+    //             j += 2; // jump supposed escape byte
+    //             if (j >= packages[i].size)
+    //             {
+    //                 i++;
+    //                 j = 0;
+    //             }
 
-                int is_escape = 0;
-                if (packages[package_index_to_search].data[data_index_to_search] == escape)
-                    is_escape = 1;
+    //             int is_escape = 0;
+    //             if (packages[package_index_to_search].data[data_index_to_search] == escape)
+    //                 is_escape = 1;
 
-                if (!is_escape)
-                    all_escapes_set = 0;
-            }
-            else
-            {
-                j++;
-                if (j >= packages[i].size)
-                {
-                    i++;
-                    j = 0;
-                }
-            }
-        }
-    }
+    //             if (!is_escape)
+    //                 all_escapes_set = 0;
+    //         }
+    //         else
+    //         {
+    //             j++;
+    //             if (j >= packages[i].size)
+    //             {
+    //                 i++;
+    //                 j = 0;
+    //             }
+    //         }
+    //     }
+    // }
 
-    if (all_escapes_set)
-        printf("All escapes were set\n");
-    else
-        printf("All escapes were not set");
+    // if (all_escapes_set)
+    //     printf("All escapes were set\n");
+    // else
+    //     printf("All escapes were not set");
 
     for (i = 0; i < packages_qnt; i++)
     {
@@ -496,8 +494,7 @@ void wait_for_packages(int socket_fd)
     int client_disconnected = 0;
     fd_set write_fds, read_fds;
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     PACKAGE package;
 
@@ -547,8 +544,7 @@ void send_file(int socket_fd, char *filepath)
     int client_disconnected = 0;
     fd_set write_fds, read_fds;
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     int message_type = MEDIA;
     FILE *file;

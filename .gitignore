@@ -1,4 +1,5 @@
 /bin
+/videos
 *.o
 client
 server

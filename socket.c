@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "socket.h"
+#include "protocol/protocol.h"
 
 int create_raw_socket(char *interface_name)
 {
@@ -42,15 +43,17 @@ int create_raw_socket(char *interface_name)
     }
 
     struct timeval timeout;
-    timeout.tv_sec = 5;
+    timeout.tv_sec = TIMEOUT_IN_SECONDS;
     timeout.tv_usec = 0;
 
-    if (setsockopt(raw_socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
+    if (setsockopt(raw_socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    {
         fprintf(stderr, "Error in set timeout to send\n");
         exit(-1);
     }
 
-    if (setsockopt(raw_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
+    if (setsockopt(raw_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    {
         fprintf(stderr, "Error in set timeout to receive\n");
         exit(-1);
     }

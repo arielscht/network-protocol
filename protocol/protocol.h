@@ -13,6 +13,8 @@
 #define VLAN_PROTOCOL_TWO 0x81
 #define ESCAPE 0xff
 
+#define TIMEOUT_IN_SECONDS 5
+
 #include <sys/select.h>
 
 typedef enum
