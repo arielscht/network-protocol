@@ -577,14 +577,14 @@ void send_file(int socket_fd, char *filepath)
     printf("There are %d packages to be sent\n", package_qnt);
 
     int window_start = 0, window_end = 0, ack_received_qnt = 0;
-    int all_acks_received = 1;
+    int update_window = 1;
 
     int *ack_received = calloc(WINDOW_SIZE, sizeof(int));
     if (!ack_received)
     {
         exit(-1);
     }
-    bzero(ack_received, sizeof(*ack_received));
+    bzero(ack_received, sizeof(int) * WINDOW_SIZE);
 
     int *expected_acks = calloc(WINDOW_SIZE, sizeof(int));
     if (!expected_acks)
@@ -595,14 +595,15 @@ void send_file(int socket_fd, char *filepath)
     while (!client_disconnected && window_start < package_qnt)
     {
         // Update the window
-        if (all_acks_received)
+        if (update_window)
         {
             window_start = window_end;
             window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
             ack_received_qnt = window_end - window_start;
-            bzero(ack_received, sizeof(int) * ack_received_qnt);
+            bzero(ack_received, sizeof(int) * WINDOW_SIZE);
             for (i = window_start; i < window_end; i++)
                 expected_acks[i % ack_received_qnt] = i % MAX_SEQUENCE;
+            update_window = 0;
         }
 
         printf("window start %d ; Window end: %d\n", window_start, window_end);
@@ -656,7 +657,7 @@ void send_file(int socket_fd, char *filepath)
 
                     printf("\n");
 
-                    // Ignores packages that area not ACK
+                    // Ignores packages that are not ACK
                     if (response.type != ACK)
                         continue;
 
@@ -669,13 +670,14 @@ void send_file(int socket_fd, char *filepath)
                     }
 
                     // Checks if all acks were received
-                    all_acks_received = 1;
+                    int all_acks_received = 1;
                     for (i = 0; i < ack_received_qnt && all_acks_received; i++)
                         if (!ack_received[i % ack_received_qnt])
                             all_acks_received = 0;
 
                     if (all_acks_received)
                     {
+                        update_window = 1;
                         printf("All acks received\n");
                         break;
                     }
