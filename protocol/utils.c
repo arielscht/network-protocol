@@ -3,19 +3,6 @@
 #include <string.h>
 #include <unistd.h>
 #include "protocol.h"
-#include "utils.h"
-
-void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data, int size)
-{
-    bzero(package, sizeof(PACKAGE));
-    package->init_marker = INIT_MARKER;
-    package->type = type;
-    package->sequence = sequence;
-    package->size = size;
-    printf("LENGTH: %d\n", package->size);
-    memcpy(package->data, data, size);
-    generate_crc(package);
-}
 
 int is_able_to_write(int socket_fd, fd_set *write_fds, struct timeval *timeout)
 {
@@ -35,94 +22,6 @@ int is_able_to_read(int socket_fd, fd_set *read_fds, struct timeval *timeout)
     if (ready_fds > 0 && FD_ISSET(socket_fd, read_fds))
         return 1;
     return 0;
-}
-
-int await_ack(int socket_fd, int sequence, PACKAGE *response, fd_set *read_fds, struct timeval *timeout)
-{
-    if (is_able_to_read(socket_fd, read_fds, timeout))
-    {
-        bzero(response, sizeof(*response));
-        if (read(socket_fd, response, sizeof(response)) < 0)
-        {
-            printf("Client disconnected!\n");
-            return -1;
-        }
-        else
-        {
-            if (response->type == ACK && response->sequence == sequence)
-            {
-                return 1;
-            }
-            return 0;
-        }
-    }
-    else
-    {
-        printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
-        return 0;
-    }
-}
-
-int send_ack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval *timeout)
-{
-    PACKAGE response;
-    bzero(&response, sizeof(response));
-    int client_disconnected = 0;
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, write_fds, timeout))
-        {
-            create_package(&response, ACK, package->sequence, "", 0);
-            if (write(socket_fd, &response, sizeof(response)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                printf("ACK SENT %d\n", package->sequence);
-                return 1;
-            }
-        }
-        else
-        {
-            printf("Timeout occurred when sending ACK package\n");
-            continue;
-        }
-    }
-
-    return -1;
-}
-
-int send_nack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval *timeout)
-{
-    PACKAGE response;
-    bzero(&response, sizeof(response));
-    int client_disconnected = 0;
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, write_fds, timeout))
-        {
-            create_package(&response, NACK, package->sequence, "", 0);
-            if (write(socket_fd, &response, sizeof(response)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                printf("NACK SENT %d\n", package->sequence);
-                return 1;
-            }
-        }
-        else
-        {
-            printf("Timeout occurred when sending NACK package\n");
-            continue;
-        }
-    }
-
-    return -1;
 }
 
 void get_binary_string(char *data, char *result, int data_size)
@@ -234,6 +133,18 @@ void generate_crc(PACKAGE *package)
     package->crc = crc;
 }
 
+void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *data, int size)
+{
+    bzero(package, sizeof(PACKAGE));
+    package->init_marker = INIT_MARKER;
+    package->type = type;
+    package->sequence = sequence;
+    package->size = size;
+    printf("LENGTH: %d\n", package->size);
+    memcpy(package->data, data, size);
+    generate_crc(package);
+}
+
 long int size_of_file(char *filepath)
 {
     FILE *fp = fopen(filepath, "r"); // assuming the file exists
@@ -273,42 +184,4 @@ void sort_packages(PACKAGE *packages, int start_index, int end_index)
         packages[i] = packages[min_index];
         packages[min_index] = aux;
     }
-}
-
-int send_control_package(int socket_fd, PACKAGE_TYPE control_type, char *control_data, int data_size)
-{
-    PACKAGE init_package, response;
-
-    int client_disconnected = 0;
-    int await_ack_status;
-
-    fd_set write_fds, read_fds;
-    struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
-
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            create_package(&init_package, control_type, 0, control_data, data_size);
-            if (write(socket_fd, &init_package, sizeof(init_package)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                await_ack_status = await_ack(socket_fd, 0, &response, &read_fds, &timeout);
-                if (await_ack_status == -1)
-                    client_disconnected = 1;
-                else if (await_ack_status)
-                    break;
-            }
-        }
-        else
-            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
-    }
-
-    return client_disconnected;
 }
