@@ -12,7 +12,6 @@ void create_package(PACKAGE *package, PACKAGE_TYPE type, short sequence, char *d
     package->type = type;
     package->sequence = sequence;
     package->size = size;
-    printf("LENGTH: %d\n", package->size);
     memcpy(package->data, data, size);
     generate_crc(package);
 }

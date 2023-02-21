@@ -5,6 +5,7 @@
 #include <math.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <time.h>
 #include "protocol.h"
 #include "utils.h"
 #include "../interface.h"
@@ -122,6 +123,8 @@ void get_text_message(int socket_fd)
 {
     int client_disconnected = 0;
 
+    time_t message_time = time(NULL);
+    struct tm local_time = *localtime(&message_time);
     fd_set write_fds, read_fds;
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
@@ -167,7 +170,14 @@ void get_text_message(int socket_fd)
         }
     }
 
-    printf("MESSAGE: %s\n", message);
+    printf("[%02d/%02d/%02d-%02d:%02d:%02d]: %s\n",
+           local_time.tm_mday,
+           local_time.tm_mon + 1,
+           local_time.tm_year + 1900,
+           local_time.tm_hour,
+           local_time.tm_min,
+           local_time.tm_sec,
+           message);
 }
 
 void get_media(int socket_fd)
@@ -296,83 +306,10 @@ void get_media(int socket_fd)
         // handle error
         exit(-1);
     }
-
-    // int sorted = 1;
-    // for (i = 0; i < ceil((double)packages_qnt / WINDOW_SIZE) && sorted; i++)
-    // {
-    //     int end = (packages_qnt > i * WINDOW_SIZE + WINDOW_SIZE ? i * WINDOW_SIZE + WINDOW_SIZE : packages_qnt);
-
-    //     for (j = i * WINDOW_SIZE; j < end - 1 && sorted; j++)
-    //         for (k = j + 1; k < end && sorted; k++)
-    //             if (packages[k].sequence < packages[j].sequence)
-    //                 sorted = 0;
-    // }
-
-    // if (sorted)
-    //     printf("Sorted correctly!\n");
-    // else
-    //     printf("Sorted incorrectly!\n");
-
     char escape = ESCAPE;
     char vlan1 = VLAN_PROTOCOL_ONE;
     char vlan2 = VLAN_PROTOCOL_TWO;
     int is_vlan_byte;
-
-    // int all_escapes_set = 1;
-    // i = 0;
-    // j = 0;
-    // for (; i < packages_qnt && all_escapes_set;)
-    // {
-    //     // printf("i: %d\n", i);
-    //     // printf("package size: %d\n", packages[i].size);
-    //     for (; j < packages[i].size && all_escapes_set;)
-    //     {
-    //         is_vlan_byte = 0;
-    //         if (packages[i].data[j] == vlan1 || packages[i].data[j] == vlan2)
-    //             is_vlan_byte = 1;
-
-    //         if (is_vlan_byte && j == packages[i].size - 1)
-    //         {
-    //             printf("WRONG!!!!!");
-    //         }
-
-    //         if (is_vlan_byte)
-    //         {
-    //             int package_index_to_search;
-    //             int data_index_to_search;
-
-    //             package_index_to_search = i;
-    //             data_index_to_search = j + 1;
-    //             j += 2; // jump supposed escape byte
-    //             if (j >= packages[i].size)
-    //             {
-    //                 i++;
-    //                 j = 0;
-    //             }
-
-    //             int is_escape = 0;
-    //             if (packages[package_index_to_search].data[data_index_to_search] == escape)
-    //                 is_escape = 1;
-
-    //             if (!is_escape)
-    //                 all_escapes_set = 0;
-    //         }
-    //         else
-    //         {
-    //             j++;
-    //             if (j >= packages[i].size)
-    //             {
-    //                 i++;
-    //                 j = 0;
-    //             }
-    //         }
-    //     }
-    // }
-
-    // if (all_escapes_set)
-    //     printf("All escapes were set\n");
-    // else
-    //     printf("All escapes were not set");
 
     for (i = 0; i < packages_qnt; i++)
     {
@@ -435,11 +372,9 @@ void *wait_for_packages(void *config_param)
 
         if (*package.data == TEXT)
         {
-            printf("\n------ TEXT - Begin Client sent you ------\n");
             config->locked = 1;
             get_text_message(config->socket_fd);
             config->locked = 0;
-            printf("\n------ TEXT - End Client sent you ------\n");
         }
         else if (*package.data == MEDIA)
         {
