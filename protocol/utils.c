@@ -79,7 +79,6 @@ int send_ack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval 
             }
             else
             {
-                printf("ACK SENT %d\n", package->sequence);
                 return 1;
             }
         }

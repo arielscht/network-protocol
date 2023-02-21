@@ -131,6 +131,7 @@ void get_text_message(int socket_fd)
 
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
+    int cur_sequence = 0;
 
     bzero(message, MAX_TEXT_MESSAGE_SIZE);
     bzero(&package, sizeof(package));
@@ -150,9 +151,13 @@ void get_text_message(int socket_fd)
                 if (package.init_marker != INIT_MARKER)
                     continue;
 
-                if (package.type == TEXT)
+                if (package.type == TEXT && package.sequence == cur_sequence)
                 {
-                    strcat(message, package.data);
+                    strncat(message, package.data, package.size);
+                    if (cur_sequence == MAX_SEQUENCE - 1)
+                        cur_sequence = 0;
+                    else
+                        cur_sequence += 1;
                 }
 
                 if (package.type == TEXT || package.type == END)
