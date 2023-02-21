@@ -4,9 +4,10 @@
 #include <unistd.h>
 #include <math.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include "protocol.h"
 #include "utils.h"
-#include <libgen.h>
+#include "../interface.h"
 
 void send_text_message(int socket_fd, char *message)
 {
@@ -179,7 +180,7 @@ void get_media(int socket_fd)
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     char *filename;
-    int packages_size, package_index, window_index, i, j, k, start_index, end_index;
+    int packages_size, package_index, window_index, i, j, start_index, end_index;
     PACKAGE *packages, cur_package;
     int last_packages[WINDOW_SIZE];
     for (i = 0; i < WINDOW_SIZE; i++)
@@ -398,8 +399,9 @@ void get_media(int socket_fd)
     fclose(file);
 }
 
-void wait_for_packages(int socket_fd)
+void *wait_for_packages(void *config_param)
 {
+    THREAD_PARAM *config = (THREAD_PARAM *)config_param;
     int client_disconnected = 0;
     fd_set write_fds, read_fds;
     struct timeval timeout;
@@ -411,10 +413,10 @@ void wait_for_packages(int socket_fd)
     {
         while (!client_disconnected)
         {
-            if (is_able_to_read(socket_fd, &read_fds, &timeout))
+            if (config->locked == 0 && is_able_to_read(config->socket_fd, &read_fds, &timeout))
             {
                 bzero(&package, sizeof(package));
-                if (read(socket_fd, &package, sizeof(package)) < 0)
+                if (read(config->socket_fd, &package, sizeof(package)) < 0)
                 {
                     client_disconnected = 1;
                     fprintf(stderr, "Client disconnected!\n");
@@ -429,21 +431,27 @@ void wait_for_packages(int socket_fd)
             }
         }
 
-        send_ack(socket_fd, &package, &write_fds, &timeout);
+        send_ack(config->socket_fd, &package, &write_fds, &timeout);
 
         if (*package.data == TEXT)
         {
             printf("\n------ TEXT - Begin Client sent you ------\n");
-            get_text_message(socket_fd);
+            config->locked = 1;
+            get_text_message(config->socket_fd);
+            config->locked = 0;
             printf("\n------ TEXT - End Client sent you ------\n");
         }
         else if (*package.data == MEDIA)
         {
             printf("\n------ MEDIA - Begin Client sent you ------\n");
-            get_media(socket_fd);
+            config->locked = 1;
+            get_media(config->socket_fd);
+            config->locked = 0;
             printf("\n------ MEDIA - End Client sent you ------\n");
         }
     }
+
+    return NULL;
 }
 
 void send_file(int socket_fd, char *filepath)

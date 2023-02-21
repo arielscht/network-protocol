@@ -1,7 +1,7 @@
-CFLAGS = -Wall -g -lm
+CFLAGS = -Wall -g -lm -lpthread
 
-CLIENT_OBJECTS = client.o socket.o protocol.o utils.o
-SERVER_OBJECTS = server.o socket.o protocol.o utils.o
+CLIENT_OBJECTS = client.o socket.o protocol.o utils.o interface.o
+SERVER_OBJECTS = server.o socket.o protocol.o utils.o interface.o
 
 all: client server
 
@@ -19,6 +19,9 @@ server.o: server.c
 
 socket.o: socket.c socket.h
 	gcc -c socket.c $(CFLAGS)
+
+interface.o: interface.c interface.h
+	gcc -c interface.c $(CFLAGS)
 
 protocol.o: ./protocol/protocol.c ./protocol/protocol.h
 	gcc -c ./protocol/protocol.c $(CFLAGS)

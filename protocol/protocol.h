@@ -43,7 +43,7 @@ void send_text_message(int socket_fd, char *message);
 
 void get_text_message(int socket_fd);
 
-void wait_for_packages(int socket_fd);
+void *wait_for_packages(void *config_param);
 
 void send_file(int socket_fd, char *filepath);
 
