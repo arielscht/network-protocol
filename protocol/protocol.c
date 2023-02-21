@@ -270,10 +270,7 @@ void get_media(int socket_fd)
                     strcpy(filename, cur_package.data);
                 }
 
-                if (crc_check || !not_duplicated)
-                    send_ack(socket_fd, &cur_package, &write_fds, &timeout);
-                else
-                    send_nack(socket_fd, &cur_package, &write_fds, &timeout);
+                send_ack(socket_fd, &cur_package, &write_fds, &timeout);
             }
         }
         else
@@ -592,17 +589,19 @@ void send_file(int socket_fd, char *filepath)
         exit(-1);
     }
 
-    while (!client_disconnected && window_start < package_qnt)
+    while (!client_disconnected)
     {
         // Update the window
         if (update_window)
         {
             window_start = window_end;
+            if (window_start >= package_qnt)
+                break;
             window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
             ack_received_qnt = window_end - window_start;
             bzero(ack_received, sizeof(int) * WINDOW_SIZE);
-            for (i = window_start; i < window_end; i++)
-                expected_acks[i % ack_received_qnt] = i % MAX_SEQUENCE;
+            for (int i = 0; i < ack_received_qnt; i++)
+                expected_acks[i] = packages[i + window_start].sequence;
             update_window = 0;
         }
 
