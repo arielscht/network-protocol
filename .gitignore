@@ -3,6 +3,7 @@
 *.o
 client
 server
+network
 *.txt
 *.png
 *.mp4
