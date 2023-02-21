@@ -600,7 +600,7 @@ void send_file(int socket_fd, char *filepath)
             window_end = package_qnt > window_end + WINDOW_SIZE ? window_end + WINDOW_SIZE : package_qnt;
             ack_received_qnt = window_end - window_start;
             bzero(ack_received, sizeof(int) * WINDOW_SIZE);
-            for (int i = 0; i < ack_received_qnt; i++)
+            for (i = 0; i < ack_received_qnt; i++)
                 expected_acks[i] = packages[i + window_start].sequence;
             update_window = 0;
         }
@@ -632,7 +632,7 @@ void send_file(int socket_fd, char *filepath)
             i++;
         }
 
-        printf("Waiting acks!\n");
+        printf("Waiting acks! %d\n", client_disconnected);
 
         while (!client_disconnected)
         {
@@ -647,6 +647,7 @@ void send_file(int socket_fd, char *filepath)
                 {
                     // Remover esses prints
                     printf("Expected acks: ");
+                    printf("RECEIVED QTD: %d", ack_received_qnt);
                     for (i = 0; i < ack_received_qnt; i++)
                     {
                         if (expected_acks[i] == -1)
@@ -684,7 +685,7 @@ void send_file(int socket_fd, char *filepath)
             }
             else
             {
-                // printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
+                printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
                 break;
             }
         }
