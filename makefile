@@ -1,18 +1,14 @@
 CFLAGS = -Wall -g -lm -lpthread
 
-CLIENT_OBJECTS = client.o socket.o protocol.o utils.o interface.o
-SERVER_OBJECTS = server.o socket.o protocol.o utils.o interface.o
+NETWORK_OBJECTS = network.o socket.o protocol.o utils.o interface.o
 
-all: client server
+all: network
 
-server: $(SERVER_OBJECTS)
-	gcc $(SERVER_OBJECTS) -o server $(CFLAGS)
+network: $(NETWORK_OBJECTS)
+	gcc $(NETWORK_OBJECTS) -o network $(CFLAGS)
 
-client: $(CLIENT_OBJECTS)
-	gcc $(CLIENT_OBJECTS) -o client $(CFLAGS)
-
-client.o: client.c
-	gcc -c client.c $(CFLAGS)
+network.o: network.c
+	gcc -c network.c $(CFLAGS)
 
 server.o: server.c
 	gcc -c server.c $(CFLAGS)
