@@ -28,28 +28,7 @@ void send_text_message(int socket_fd, char *message)
     char message_slice[MAX_DATA_SIZE];
     int message_type = TEXT;
 
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            create_package(&package, INIT, 0, (char *)&message_type, sizeof(message_type));
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                await_ack_status = await_ack(socket_fd, 0, &response, &read_fds, &timeout);
-                if (await_ack_status == -1)
-                    client_disconnected = 1;
-                else if (await_ack_status)
-                    break;
-            }
-        }
-        else
-            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
-    }
+    send_control_package(socket_fd, INIT, (char *)&message_type, sizeof(message_type));
 
     while (!client_disconnected && remaining_length > 0)
     {
@@ -93,29 +72,7 @@ void send_text_message(int socket_fd, char *message)
         remaining_length -= current_length;
     };
 
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            int end_sequence = sequence % MAX_SEQUENCE;
-            create_package(&package, END, end_sequence, (char *)&message_type, sizeof(message_type));
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                await_ack_status = await_ack(socket_fd, end_sequence, &response, &read_fds, &timeout);
-                if (await_ack_status == -1)
-                    client_disconnected = 1;
-                else if (await_ack_status)
-                    break;
-            }
-        }
-        else
-            fprintf(stderr, "Timeout occurred on writing END, trying again\n");
-    }
+    send_control_package(socket_fd, END, (char *)&message_type, sizeof(message_type));
 }
 
 // review logic
