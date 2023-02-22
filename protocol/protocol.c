@@ -20,6 +20,7 @@ void send_text_message(int socket_fd, char *message)
 
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
+    timeout.tv_usec = 0;
 
     int message_length = strlen(message);
     int remaining_length = message_length;
@@ -62,7 +63,7 @@ void send_text_message(int socket_fd, char *message)
 
         strncpy(message_slice, message + message_displacement, current_length);
 
-        printf("CHUNK %d: %s\n", sequence, message_slice);
+        // printf("CHUNK %d: %s\n", sequence, message_slice);
 
         while (!client_disconnected)
         {
@@ -86,8 +87,6 @@ void send_text_message(int socket_fd, char *message)
             else
                 fprintf(stderr, "Timeout occurred on writing message of sequence %d, trying again\n", sequence);
         }
-
-        printf("CHUNK SENT AND RECEIVED.\n");
 
         sequence++;
         remaining_length -= current_length;
@@ -128,6 +127,7 @@ void get_text_message(int socket_fd)
     fd_set write_fds, read_fds;
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
+    timeout.tv_usec = 0;
 
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
@@ -193,6 +193,7 @@ void get_media(int socket_fd, long int file_size)
     fd_set write_fds, read_fds;
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
+    timeout.tv_usec = 0;
 
     char *filename;
     int packages_size, package_index, window_index, i, j, start_index, end_index;
@@ -294,7 +295,7 @@ void get_media(int socket_fd, long int file_size)
         }
         else
         {
-            // fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
+            fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
         }
     }
 
@@ -351,6 +352,7 @@ void *wait_for_packages(void *config_param)
     fd_set write_fds, read_fds;
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
+    timeout.tv_usec = 0;
 
     PACKAGE package;
 
@@ -404,6 +406,7 @@ void send_file(int socket_fd, char *filepath, long int file_size)
     fd_set write_fds, read_fds;
     struct timeval timeout;
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
+    timeout.tv_usec = 0;
 
     // Data control
     FILE *file;
@@ -649,7 +652,7 @@ void send_file(int socket_fd, char *filepath, long int file_size)
             }
         }
     }
-
+    printf("The file was sent successfully\n");
     // Send END package
     char *filename = basename(filepath);
     send_control_package(socket_fd, END, filename, strlen(filename));
