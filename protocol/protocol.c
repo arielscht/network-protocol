@@ -300,9 +300,13 @@ void get_media(int socket_fd, long int file_size)
 
             fwrite(&packages[i].data[j], 1, 1, file);
         }
+        if (i % 1000 == 0 || i == packages_qnt - 1)
+            show_progress(i + 1, packages_qnt, "Writing file  ");
     }
 
     fclose(file);
+
+    printf("File %s received\n\n", filename);
 }
 
 void *wait_for_packages(void *config_param)
@@ -612,7 +616,7 @@ void send_file(int socket_fd, char *filepath, long int file_size)
             }
         }
     }
-    printf("The file was sent successfully\n");
+    printf("The file was sent successfully\n\n");
     // Send END package
     char *filename = basename(filepath);
     send_control_package(socket_fd, END, filename, strlen(filename));
