@@ -29,5 +29,4 @@ clean:
 	rm -f *.o
 
 purge:	clean
-	rm -f client
-	rm -f server
+	rm -f network
