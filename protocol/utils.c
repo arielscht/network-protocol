@@ -57,7 +57,7 @@ int await_ack(int socket_fd, int sequence, PACKAGE *response, fd_set *read_fds, 
     }
     else
     {
-        printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
+        // printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
         return 0;
     }
 }
@@ -84,7 +84,7 @@ int send_ack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval 
         }
         else
         {
-            printf("Timeout occurred when sending ACK package\n");
+            // printf("Timeout occurred when sending ACK package\n");
             continue;
         }
     }
@@ -115,7 +115,7 @@ int send_nack(int socket_fd, PACKAGE *package, fd_set *write_fds, struct timeval
         }
         else
         {
-            printf("Timeout occurred when sending NACK package\n");
+            // printf("Timeout occurred when sending NACK package\n");
             continue;
         }
     }
@@ -304,8 +304,8 @@ int send_control_package(int socket_fd, PACKAGE_TYPE control_type, char *control
                     break;
             }
         }
-        else
-            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
+        // else
+        // fprintf(stderr, "Timeout occurred on writing init, trying again\n");
     }
 
     return client_disconnected;
