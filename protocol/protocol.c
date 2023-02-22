@@ -88,7 +88,7 @@ void get_text_message(int socket_fd)
 
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
-    int cur_sequence = 0;
+    int cur_sequence = 0, crc_check, not_duplicated;
 
     bzero(message, MAX_TEXT_MESSAGE_SIZE);
     bzero(&package, sizeof(package));
@@ -105,24 +105,33 @@ void get_text_message(int socket_fd)
             }
             else
             {
+                if (package.type != TEXT && package.type != END)
+                    continue;
+
                 if (package.init_marker != INIT_MARKER)
                     continue;
 
-                if (package.type == TEXT && package.sequence == cur_sequence)
+                crc_check = 0;
+                not_duplicated = package.sequence == cur_sequence;
+
+                if (not_duplicated)
                 {
-                    strncat(message, package.data, package.size);
-                    if (cur_sequence == MAX_SEQUENCE - 1)
-                        cur_sequence = 0;
-                    else
-                        cur_sequence += 1;
+                    crc_check = check_crc(&package);
+                    if (crc_check)
+                    {
+                        strncat(message, package.data, package.size);
+                        if (cur_sequence == MAX_SEQUENCE - 1)
+                            cur_sequence = 0;
+                        else
+                            cur_sequence += 1;
+                    }
                 }
 
-                if (package.type == TEXT || package.type == END)
-                {
+                // send nack only if package is not duplicated and crc check failed, otherwise should send ack to all cases
+                if (!crc_check && not_duplicated)
+                    send_nack(socket_fd, &package, &write_fds, &timeout);
+                else
                     send_ack(socket_fd, &package, &write_fds, &timeout);
-                }
-                // Do not forget to treat other errors
-                continue;
             }
         }
         else
