@@ -45,6 +45,6 @@ void get_text_message(int socket_fd);
 
 void *wait_for_packages(void *config_param);
 
-void send_file(int socket_fd, char *filepath);
+void send_file(int socket_fd, char *filepath, long int file_size);
 
 #endif

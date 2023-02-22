@@ -394,7 +394,7 @@ void *wait_for_packages(void *config_param)
     return NULL;
 }
 
-void send_file(int socket_fd, char *filepath)
+void send_file(int socket_fd, char *filepath, long int file_size)
 {
     // Timeout and connection control
     int client_disconnected = 0;
@@ -492,6 +492,8 @@ void send_file(int socket_fd, char *filepath)
 
         // Reads a new byte
         bytes_read = fread(&current_byte, 1, 1, file);
+        if (all_bytes % 1000 == 0 || all_bytes >= file_size)
+            show_progress(all_bytes, file_size, "Reading file");
     }
 
     // Create the last package with the remaining buffer
@@ -504,22 +506,22 @@ void send_file(int socket_fd, char *filepath)
     fclose(file);
 
     // Count and print bytes
-    printf("ALL BYTES: %ld\n", all_bytes);
-    printf("VLAN BYTES: %ld\n", vlan_bytes);
-    long int packages_sum = 0;
-    for (int i = 0; i < package_index; i++)
-    {
-        packages_sum += packages[i].size;
-    }
-    printf("PACKAGES: %ld\n", packages_sum);
-    printf("PACKAGES QUANTITY: %d", package_index);
+    // printf("ALL BYTES: %ld\n", all_bytes);
+    // printf("VLAN BYTES: %ld\n", vlan_bytes);
+    // long int packages_sum = 0;
+    // for (int i = 0; i < package_index; i++)
+    // {
+    //     packages_sum += packages[i].size;
+    // }
+    // printf("PACKAGES: %ld\n", packages_sum);
+    // printf("PACKAGES QUANTITY: %d", package_index);
 
     // Send INIT package
     send_control_package(socket_fd, INIT, (char *)&message_type, sizeof(message_type));
 
     package_qnt = package_index;
-    printf("INIT ACK RECEIVED SUCCESS\n");
-    printf("There are %d packages to be sent\n", package_qnt);
+    // printf("INIT ACK RECEIVED SUCCESS\n");
+    // printf("There are %d packages to be sent\n", package_qnt);
 
     int window_start = 0, window_end = 0, ack_received_qnt = 0;
     int update_window = 1;
@@ -551,9 +553,10 @@ void send_file(int socket_fd, char *filepath)
             for (i = 0; i < ack_received_qnt; i++)
                 expected_acks[i] = packages[i + window_start].sequence;
             update_window = 0;
+            show_progress(window_end, package_qnt, "Sending file");
         }
 
-        printf("window start %d ; Window end: %d\n", window_start, window_end);
+        // printf("window start %d ; Window end: %d\n", window_start, window_end);
 
         // Send packages from the current window which did not receive an ACK yet
         i = window_start;
@@ -568,19 +571,19 @@ void send_file(int socket_fd, char *filepath)
                         client_disconnected = 1;
                         fprintf(stderr, "Client disconnected!\n");
                     }
-                    else
-                        printf("Package %d was sent\n", i);
+                    // else
+                    // printf("Package %d was sent\n", i);
                 }
                 else
                 {
-                    fprintf(stderr, "Timeout occurred on writing package %d, trying again\n", i);
+                    // fprintf(stderr, "Timeout occurred on writing package %d, trying again\n", i);
                     continue;
                 }
             }
             i++;
         }
 
-        printf("Waiting acks! %d\n", client_disconnected);
+        // printf("Waiting acks! %d\n", client_disconnected);
 
         while (!client_disconnected)
         {
@@ -594,16 +597,16 @@ void send_file(int socket_fd, char *filepath)
                 else
                 {
                     // Remover esses prints
-                    printf("Expected acks: ");
-                    printf("RECEIVED QTD: %d", ack_received_qnt);
-                    for (i = 0; i < ack_received_qnt; i++)
-                    {
-                        if (expected_acks[i] == -1)
-                            continue;
-                        printf("%d ", expected_acks[i]);
-                    }
+                    // printf("Expected acks: ");
+                    // printf("RECEIVED QTD: %d", ack_received_qnt);
+                    // for (i = 0; i < ack_received_qnt; i++)
+                    // {
+                    //     if (expected_acks[i] == -1)
+                    //         continue;
+                    //     printf("%d ", expected_acks[i]);
+                    // }
 
-                    printf("\n");
+                    // printf("\n");
 
                     // Ignores packages that are not ACK
                     if (response.type != ACK)
@@ -626,14 +629,14 @@ void send_file(int socket_fd, char *filepath)
                     if (all_acks_received)
                     {
                         update_window = 1;
-                        printf("All acks received\n");
+                        // printf("All acks received\n");
                         break;
                     }
                 }
             }
             else
             {
-                printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
+                // printf("Timeout occurred on receiving ACK from MESSAGE, trying again\n");
                 break;
             }
         }

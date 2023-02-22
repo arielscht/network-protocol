@@ -15,4 +15,6 @@ void listen_message_mode(THREAD_PARAM *config);
 
 void *listen_to_commands(void *config_param);
 
+void show_progress(int current, int total, char *message);
+
 #endif

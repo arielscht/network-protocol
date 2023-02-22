@@ -55,7 +55,6 @@ void *listen_to_commands(void *config_param)
             {
                 if (strcmp(filepath, ":send") != 0)
                 {
-                    printf("%s\n", filepath);
                     break;
                 }
 
@@ -64,9 +63,9 @@ void *listen_to_commands(void *config_param)
 
             if (access(filepath, R_OK) == 0)
             {
-                printf("The size of the file %s is: %ld\n", filepath, size_of_file(filepath));
+                long int file_size = size_of_file(filepath);
                 config->locked = 1;
-                send_file(config->socket_fd, filepath);
+                send_file(config->socket_fd, filepath, file_size);
                 config->locked = 0;
             }
             else
@@ -82,4 +81,21 @@ void *listen_to_commands(void *config_param)
     }
 
     return NULL;
+}
+
+void show_progress(int current, int total, char *message)
+{
+    float progress = (current / (float)total) * 100;
+    char progress_full[21] = {'=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '=', '\0'};
+    char progress_empty[21] = {'.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '\0'};
+    int progress_index = progress / 5;
+    progress_full[progress_index] = '\0';
+    progress_empty[20 - progress_index] = '\0';
+    fflush(stdout);
+    printf("\r\33[2K%s [", message);
+    printf("%s", progress_full);
+    printf("%s", progress_empty);
+    printf("] %3.2f%%", progress);
+    if (progress >= 100)
+        printf("\n");
 }
