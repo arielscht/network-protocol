@@ -185,7 +185,7 @@ void get_text_message(int socket_fd)
            message);
 }
 
-void get_media(int socket_fd)
+void get_media(int socket_fd, long int file_size)
 {
     int client_disconnected = 0;
     int crc_check, not_duplicated;
@@ -201,6 +201,7 @@ void get_media(int socket_fd)
     for (i = 0; i < WINDOW_SIZE; i++)
         last_packages[i] = -1;
 
+    long int bytes_received = 0;
     packages_size = 5;
     package_index = 0;
     window_index = 0;
@@ -244,7 +245,7 @@ void get_media(int socket_fd)
 
                 if (cur_package.type == MEDIA)
                 {
-                    printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
+                    // printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
                     int window_is_odd = window_index % 2;
                     int lower_bound = window_is_odd ? WINDOW_SIZE : 0;
                     int upper_bound = window_is_odd ? WINDOW_SIZE * 2 - 1 : WINDOW_SIZE - 1;
@@ -256,10 +257,12 @@ void get_media(int socket_fd)
                         if (crc_check)
                         {
                             last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
-                            printf("Not duplicated ; index: %d\n", package_index);
+                            // printf("Not duplicated ; index: %d\n", package_index);
                             packages[package_index] = cur_package;
-                            printf("Package sequence: %d\n", packages[package_index].sequence);
+                            // printf("Package sequence: %d\n", packages[package_index].sequence);
                             package_index++;
+                            bytes_received += cur_package.size;
+                            show_progress(bytes_received, file_size, "Receiving file");
                             if (package_index % WINDOW_SIZE == 0)
                             {
                                 window_index++;
@@ -270,12 +273,12 @@ void get_media(int socket_fd)
                     }
                     else
                     {
-                        printf("The package of sequence %d is duplicated", cur_package.sequence);
+                        // printf("The package of sequence %d is duplicated", cur_package.sequence);
                     }
                 }
                 else
                 {
-                    printf("Inside end ; index: %d\n", package_index);
+                    // printf("Inside end ; index: %d\n", package_index);
                     filename = calloc(cur_package.size, sizeof(char));
                     if (!filename)
                     {
@@ -291,7 +294,7 @@ void get_media(int socket_fd)
         }
         else
         {
-            fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
+            // fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
         }
     }
 
@@ -383,11 +386,11 @@ void *wait_for_packages(void *config_param)
         }
         else if (*package.data == MEDIA)
         {
-            printf("\n------ MEDIA - Begin Client sent you ------\n");
+
+            long int file_size = *(long int *)(package.data + 2);
             config->locked = 1;
-            get_media(config->socket_fd);
+            get_media(config->socket_fd, file_size);
             config->locked = 0;
-            printf("\n------ MEDIA - End Client sent you ------\n");
         }
     }
 

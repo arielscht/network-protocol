@@ -7,7 +7,7 @@
 
 int main()
 {
-    char *interface_name = "enp5s0";
+    char *interface_name = "enp2s0f1";
     int socket = 0;
     pthread_t threads_id[2];
     THREAD_PARAM config;
