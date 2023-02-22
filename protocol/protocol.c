@@ -244,7 +244,7 @@ void get_media(int socket_fd)
 
                 if (cur_package.type == MEDIA)
                 {
-                    printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
+                    // printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
                     int window_is_odd = window_index % 2;
                     int lower_bound = window_is_odd ? WINDOW_SIZE : 0;
                     int upper_bound = window_is_odd ? WINDOW_SIZE * 2 - 1 : WINDOW_SIZE - 1;
@@ -256,9 +256,9 @@ void get_media(int socket_fd)
                         if (crc_check)
                         {
                             last_packages[cur_package.sequence % WINDOW_SIZE] = cur_package.sequence;
-                            printf("Not duplicated ; index: %d\n", package_index);
+                            // printf("Not duplicated ; index: %d\n", package_index);
                             packages[package_index] = cur_package;
-                            printf("Package sequence: %d\n", packages[package_index].sequence);
+                            // printf("Package sequence: %d\n", packages[package_index].sequence);
                             package_index++;
                             if (package_index % WINDOW_SIZE == 0)
                             {
@@ -270,12 +270,12 @@ void get_media(int socket_fd)
                     }
                     else
                     {
-                        printf("The package of sequence %d is duplicated", cur_package.sequence);
+                        // printf("The package of sequence %d is duplicated", cur_package.sequence);
                     }
                 }
                 else
                 {
-                    printf("Inside end ; index: %d\n", package_index);
+                    // printf("Inside end ; index: %d\n", package_index);
                     filename = calloc(cur_package.size, sizeof(char));
                     if (!filename)
                     {
@@ -517,7 +517,12 @@ void send_file(int socket_fd, char *filepath, long int file_size)
     // printf("PACKAGES QUANTITY: %d", package_index);
 
     // Send INIT package
-    send_control_package(socket_fd, INIT, (char *)&message_type, sizeof(message_type));
+    char init_message[20];
+    long int total_bytes = all_bytes + vlan_bytes;
+    bzero(init_message, 20);
+    memcpy(init_message, &message_type, 1);
+    memcpy(&init_message[2], &total_bytes, sizeof(total_bytes));
+    send_control_package(socket_fd, INIT, (char *)init_message, sizeof(message_type) + sizeof(file_size) + 1);
 
     package_qnt = package_index;
     // printf("INIT ACK RECEIVED SUCCESS\n");
