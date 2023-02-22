@@ -48,8 +48,8 @@ void send_text_message(int socket_fd, char *message)
                     break;
             }
         }
-        else
-            fprintf(stderr, "Timeout occurred on writing init, trying again\n");
+        // else
+        //     fprintf(stderr, "Timeout occurred on writing init, trying again\n");
     }
 
     while (!client_disconnected && remaining_length > 0)
@@ -84,8 +84,8 @@ void send_text_message(int socket_fd, char *message)
                         break;
                 }
             }
-            else
-                fprintf(stderr, "Timeout occurred on writing message of sequence %d, trying again\n", sequence);
+            // else
+            //     fprintf(stderr, "Timeout occurred on writing message of sequence %d, trying again\n", sequence);
         }
 
         sequence++;
@@ -112,8 +112,8 @@ void send_text_message(int socket_fd, char *message)
                     break;
             }
         }
-        else
-            fprintf(stderr, "Timeout occurred on writing END, trying again\n");
+        // else
+        //     fprintf(stderr, "Timeout occurred on writing END, trying again\n");
     }
 }
 
@@ -168,11 +168,11 @@ void get_text_message(int socket_fd)
                 continue;
             }
         }
-        else
-        {
-            fprintf(stderr, "Timeout occurred when receiving TEXT package\n");
-            break;
-        }
+        // else
+        // {
+        //     fprintf(stderr, "Timeout occurred when receiving TEXT package\n");
+        //     break;
+        // }
     }
 
     printf("[%02d/%02d/%02d-%02d:%02d:%02d]: %s\n",
@@ -293,10 +293,10 @@ void get_media(int socket_fd, long int file_size)
                 send_ack(socket_fd, &cur_package, &write_fds, &timeout);
             }
         }
-        else
-        {
-            fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
-        }
+        // else
+        // {
+        //     fprintf(stderr, "Timeout occurred when receiving MEDIA package\n");
+        // }
     }
 
     int packages_qnt = package_index;
