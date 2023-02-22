@@ -4,7 +4,6 @@
 #include <pthread.h>
 
 #define MAX_COMMAND_SIZE 32
-
 typedef struct
 {
     int socket_fd;

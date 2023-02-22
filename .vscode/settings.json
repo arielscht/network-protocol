@@ -4,6 +4,9 @@
         "server.h": "c",
         "socket.h": "c",
         "protocol.h": "c",
+        "time.h": "c",
+        "utils.h": "c",
+        "interface.h": "c"
     },
     "editor.formatOnSave": true
     // "files.exclude": "**/**.o"

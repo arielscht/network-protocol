@@ -141,7 +141,7 @@ void get_text_message(int socket_fd)
         // }
     }
 
-    printf("[%02d/%02d/%02d-%02d:%02d:%02d]: %s\n",
+    printf("\r\033[32m[%02d/%02d/%02d-%02d:%02d:%02d]: %s\033[37m \n",
            local_time.tm_mday,
            local_time.tm_mon + 1,
            local_time.tm_year + 1900,
