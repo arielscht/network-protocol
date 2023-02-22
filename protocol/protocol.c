@@ -520,7 +520,12 @@ void send_file(int socket_fd, char *filepath, long int file_size)
     // printf("PACKAGES QUANTITY: %d", package_index);
 
     // Send INIT package
-    send_control_package(socket_fd, INIT, (char *)&message_type, sizeof(message_type));
+    char init_message[20];
+    long int total_bytes = all_bytes + vlan_bytes;
+    bzero(init_message, 20);
+    memcpy(init_message, &message_type, 1);
+    memcpy(&init_message[2], &total_bytes, sizeof(total_bytes));
+    send_control_package(socket_fd, INIT, (char *)init_message, sizeof(message_type) + sizeof(file_size) + 1);
 
     package_qnt = package_index;
     // printf("INIT ACK RECEIVED SUCCESS\n");
