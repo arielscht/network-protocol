@@ -27,7 +27,7 @@ long int size_of_file(char *filepath);
 
 int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int start_index, int end_index);
 
-void sort_packages(PACKAGE *packages, int start_index, int end_index);
+void sort_packages(PACKAGE *packages, int packages_qnt);
 
 int send_control_package(int socket_fd, PACKAGE_TYPE control_type, char *control_data, int data_size);
 

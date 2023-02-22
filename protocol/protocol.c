@@ -161,7 +161,7 @@ void get_media(int socket_fd, long int file_size)
     timeout.tv_sec = TIMEOUT_IN_SECONDS;
 
     char *filename;
-    int packages_size, package_index, window_index, i, j, start_index, end_index;
+    int packages_size, package_index, window_index, i, j;
     PACKAGE *packages, cur_package;
     int last_packages[WINDOW_SIZE];
     for (i = 0; i < WINDOW_SIZE; i++)
@@ -265,14 +265,8 @@ void get_media(int socket_fd, long int file_size)
     }
 
     int packages_qnt = package_index;
-    start_index = 0;
-    end_index = packages_qnt > WINDOW_SIZE ? WINDOW_SIZE - 1 : packages_qnt - 1;
-    while (start_index < packages_qnt)
-    {
-        sort_packages(packages, start_index, end_index);
-        start_index = end_index + 1;
-        end_index = packages_qnt > (end_index + 1) + WINDOW_SIZE ? (end_index + 1) + WINDOW_SIZE - 1 : packages_qnt - 1;
-    }
+
+    sort_packages(packages, packages_qnt);
 
     FILE *file = fopen(filename, "wb");
     if (!file)
