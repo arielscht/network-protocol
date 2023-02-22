@@ -29,28 +29,7 @@ void send_text_message(int socket_fd, char *message)
     char message_slice[MAX_DATA_SIZE];
     int message_type = TEXT;
 
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            create_package(&package, INIT, 0, (char *)&message_type, sizeof(message_type));
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                await_ack_status = await_ack(socket_fd, 0, &response, &read_fds, &timeout);
-                if (await_ack_status == -1)
-                    client_disconnected = 1;
-                else if (await_ack_status)
-                    break;
-            }
-        }
-        // else
-        //     fprintf(stderr, "Timeout occurred on writing init, trying again\n");
-    }
+    send_control_package(socket_fd, INIT, (char *)&message_type, sizeof(message_type));
 
     while (!client_disconnected && remaining_length > 0)
     {
@@ -92,29 +71,7 @@ void send_text_message(int socket_fd, char *message)
         remaining_length -= current_length;
     };
 
-    while (!client_disconnected)
-    {
-        if (is_able_to_write(socket_fd, &write_fds, &timeout))
-        {
-            int end_sequence = sequence % MAX_SEQUENCE;
-            create_package(&package, END, end_sequence, (char *)&message_type, sizeof(message_type));
-            if (write(socket_fd, &package, sizeof(package)) < 0)
-            {
-                client_disconnected = 1;
-                fprintf(stderr, "Client disconnected!\n");
-            }
-            else
-            {
-                await_ack_status = await_ack(socket_fd, end_sequence, &response, &read_fds, &timeout);
-                if (await_ack_status == -1)
-                    client_disconnected = 1;
-                else if (await_ack_status)
-                    break;
-            }
-        }
-        // else
-        //     fprintf(stderr, "Timeout occurred on writing END, trying again\n");
-    }
+    send_control_package(socket_fd, END, (char *)&message_type, sizeof(message_type));
 }
 
 // review logic
@@ -131,7 +88,7 @@ void get_text_message(int socket_fd)
 
     PACKAGE package;
     char message[MAX_TEXT_MESSAGE_SIZE];
-    int cur_sequence = 0;
+    int cur_sequence = 0, crc_check, not_duplicated;
 
     bzero(message, MAX_TEXT_MESSAGE_SIZE);
     bzero(&package, sizeof(package));
@@ -148,24 +105,33 @@ void get_text_message(int socket_fd)
             }
             else
             {
+                if (package.type != TEXT && package.type != END)
+                    continue;
+
                 if (package.init_marker != INIT_MARKER)
                     continue;
 
-                if (package.type == TEXT && package.sequence == cur_sequence)
+                crc_check = 0;
+                not_duplicated = package.sequence == cur_sequence;
+
+                if (not_duplicated)
                 {
-                    strncat(message, package.data, package.size);
-                    if (cur_sequence == MAX_SEQUENCE - 1)
-                        cur_sequence = 0;
-                    else
-                        cur_sequence += 1;
+                    crc_check = check_crc(&package);
+                    if (crc_check)
+                    {
+                        strncat(message, package.data, package.size);
+                        if (cur_sequence == MAX_SEQUENCE - 1)
+                            cur_sequence = 0;
+                        else
+                            cur_sequence += 1;
+                    }
                 }
 
-                if (package.type == TEXT || package.type == END)
-                {
+                // send nack only if package is not duplicated and crc check failed, otherwise should send ack to all cases
+                if (!crc_check && not_duplicated)
+                    send_nack(socket_fd, &package, &write_fds, &timeout);
+                else
                     send_ack(socket_fd, &package, &write_fds, &timeout);
-                }
-                // Do not forget to treat other errors
-                continue;
             }
         }
         // else
@@ -196,7 +162,7 @@ void get_media(int socket_fd, long int file_size)
     timeout.tv_usec = 0;
 
     char *filename;
-    int packages_size, package_index, window_index, i, j, start_index, end_index;
+    int packages_size, package_index, window_index, i, j;
     PACKAGE *packages, cur_package;
     int last_packages[WINDOW_SIZE];
     for (i = 0; i < WINDOW_SIZE; i++)
@@ -300,14 +266,8 @@ void get_media(int socket_fd, long int file_size)
     }
 
     int packages_qnt = package_index;
-    start_index = 0;
-    end_index = packages_qnt > WINDOW_SIZE ? WINDOW_SIZE - 1 : packages_qnt - 1;
-    while (start_index < packages_qnt)
-    {
-        sort_packages(packages, start_index, end_index);
-        start_index = end_index + 1;
-        end_index = packages_qnt > (end_index + 1) + WINDOW_SIZE ? (end_index + 1) + WINDOW_SIZE - 1 : packages_qnt - 1;
-    }
+
+    sort_packages(packages, packages_qnt);
 
     FILE *file = fopen(filename, "wb");
     if (!file)

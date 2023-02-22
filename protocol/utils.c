@@ -254,7 +254,7 @@ int check_duplicated(PACKAGE *packages, PACKAGE *cur_package, int start_index, i
     return 0;
 }
 
-void sort_packages(PACKAGE *packages, int start_index, int end_index)
+void sort_by_sequence(PACKAGE *packages, int start_index, int end_index)
 {
     PACKAGE aux;
     int i, j, min_index;
@@ -270,6 +270,20 @@ void sort_packages(PACKAGE *packages, int start_index, int end_index)
         aux = packages[i];
         packages[i] = packages[min_index];
         packages[min_index] = aux;
+    }
+}
+
+void sort_packages(PACKAGE *packages, int packages_qnt)
+{
+    int start_index, end_index;
+
+    start_index = 0;
+    end_index = packages_qnt > WINDOW_SIZE ? WINDOW_SIZE - 1 : packages_qnt - 1;
+    while (start_index < packages_qnt)
+    {
+        sort_by_sequence(packages, start_index, end_index);
+        start_index = end_index + 1;
+        end_index = packages_qnt > (end_index + 1) + WINDOW_SIZE ? (end_index + 1) + WINDOW_SIZE - 1 : packages_qnt - 1;
     }
 }
 
