@@ -172,6 +172,8 @@ void get_media(int socket_fd, long int file_size)
     packages_size = 5;
     package_index = 0;
     window_index = 0;
+    int lower_bound = 0;
+    int upper_bound = WINDOW_SIZE - 1;
 
     packages = calloc(packages_size, sizeof(PACKAGE));
     if (!packages)
@@ -212,10 +214,6 @@ void get_media(int socket_fd, long int file_size)
 
                 if (cur_package.type == MEDIA)
                 {
-                    // printf("Before check duplicated ; index: %d; curr package sequence: %d\n", package_index, cur_package.sequence);
-                    int window_is_odd = window_index % 2;
-                    int lower_bound = window_is_odd ? WINDOW_SIZE : 0;
-                    int upper_bound = window_is_odd ? WINDOW_SIZE * 2 - 1 : WINDOW_SIZE - 1;
                     not_duplicated = last_packages[cur_package.sequence % WINDOW_SIZE] != cur_package.sequence && cur_package.sequence >= lower_bound && cur_package.sequence <= upper_bound;
 
                     if (not_duplicated)
@@ -232,6 +230,16 @@ void get_media(int socket_fd, long int file_size)
                             show_progress(bytes_received, file_size, "Receiving file");
                             if (package_index % WINDOW_SIZE == 0)
                             {
+                                if (upper_bound == MAX_SEQUENCE - 1)
+                                {
+                                    lower_bound = 0;
+                                    upper_bound = WINDOW_SIZE - 1;
+                                }
+                                else
+                                {
+                                    lower_bound += WINDOW_SIZE;
+                                    upper_bound += WINDOW_SIZE;
+                                }
                                 window_index++;
                                 for (i = 0; i < WINDOW_SIZE; i++)
                                     last_packages[i] = -1;
